@@ -1,0 +1,200 @@
+---
+title: "'Lab 1: Question 3'"
+author: 'w203: Statistics for Data Science'
+output:
+  bookdown::pdf_document2: 
+    toc: true
+---
+
+\clearpage
+
+```{r load packages and set options, include=FALSE}
+library(tidyverse) 
+library(magrittr)
+library(knitr)
+library(patchwork)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+library(haven)
+library(nhstplot)
+library("gplots")
+theme_set(theme_bw())
+
+options(tinytex.verbose = TRUE)
+```
+
+
+
+```{r, include=FALSE }
+
+dat<-read_sav('anes_timeseries_2020_spss_20210211.sav')
+
+
+df <- dat %>%
+        filter(V201624 == 1 | V201624 == 2 | V201145 ==1 | V201145 == 2 
+             | V201146 ==1 | V201146 == 2 ) %>%
+        select(V201624, V201145, V201146)
+
+#sapply(df, function(x) sum(is.na(x)))
+
+df <- df %>%
+  mutate(
+    V201624 = case_when(
+      V201624 == 1 ~ 1, #covid-19
+      V201624 == 2 ~ 0  #normal
+    ),
+    V201145 = case_when(
+      V201145 == 1 ~ 0, #approve 
+      V201145 == 2 ~ 1  #not approve
+    ), 
+    V201146 = case_when(
+      V201146 == 1 ~ 1, #strong
+      V201146 == 2 ~ 0  #normal
+    )
+  )
+
+
+summary(df %>% filter(V201624 == 0) %>% .$V201145)
+summary(df %>% filter(V201624 == 1) %>% .$V201145)
+summary(df %>% filter(V201146 == 1) %>% .$V201145)
+```
+
+
+```{r message=FALSE, warning=FALSE, paged.print=TRUE, echo=FALSE}   
+
+gp<-df%>%
+  group_by(V201624, V201145, V201146)%>%
+  summarise(Counts=n())
+gp  <- na.omit(gp) 
+gp
+```
+ 
+
+```{r fig.height=4, fig.width=6, echo=FALSE}   
+ 
+testor01 = rbind(c(1780,3087,843,2134),+  c(64,95,40,85)); testor01
+chi01 = chisq.test(testor01,correct=F); chi01
+plotchisqtest(chi01)
+
+chi01$expected
+
+#testor01 = rbind(c(1780,3087),+  c(64,95)); testor01
+#chi01 = chisq.test(testor01,correct=F); chi01
+#chi01$expected
+
+dt <- as.table(as.matrix(testor01))
+
+```
+
+
+```{r plot1, echo=FALSE, fig.height=4, fig.width=6}
+plot1 <- mosaicplot(dt, shade = TRUE, las=2,
+           main = "Covid-19 Impactions")
+
+```
+ 
+
+```{r plots1, echo=FALSE, fig.cap='Voter Emotions and Feelings', fig.pos='!b', message=FALSE}
+ (plot1) 
+```
+
+
+
+
+
+```{r fig.height=4.5, fig.width=6,  echo=FALSE}
+testor02 = rbind(c(159,4876),+  c(125,2978)); testor02
+chi02 = chisq.test(testor02,correct=F); chi02
+chi02$expected
+
+plotchisqtest(chi02)
+
+
+
+dt02 <- as.table(as.matrix(testor02))
+```
+
+```{r Plot2, echo=FALSE}
+
+plot2 <-mosaicplot(dt02, shade = TRUE, las=2,
+           main = "Covid-19 Impactions")
+
+```
+
+
+```{r plots2, echo=FALSE, fig.cap='Voter Emotions and Feelings', fig.pos='!b', message=FALSE}
+ (plot2) 
+```
+
+
+```{r eval=FALSE, include=FALSE}
+#create density curve
+curve(dchisq(x, df = 10), from = 0, to = 40,
+main = 'Chi-Square Distribution (df = 10)',
+ylab = 'Density',
+lwd = 2)
+
+#find upper and lower values for middle 95% of distribution
+lower95 <- qchisq(.025, 10)
+upper95 <- qchisq(.975, 10)
+
+#create vector of x values
+x_vector <- seq(lower95, upper95)
+
+#create vector of chi-square density values
+p_vector <- dchisq(x_vector, df = 10)
+
+#fill in density plot
+polygon(c(x_vector, rev(x_vector)), c(p_vector, rep(0, length(p_vector))),
+        col = adjustcolor('red', alpha=0.3), border = NA)
+```
+
+
+
+
+
+
+
+
+
+
+
+# Are survey respondents who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic?
+
+## Description of Data
+
+
+We will address this question using data from the 2018 American National Election Studies (ANES).  This is an observational dataset, based on a sample of respondents drawn from the YouGov platform. As we report in Table \@ref(tab:summary-table), 70% of ANES respondents report that they voted in both the 2016 and 2018 elections. While turnout of 75% might be expected in the presidential general, it is highly unlikely to have turnout this high in an off-cycle election. Also notable in this data is that voting (or not voting) seems to be highly durable -- only 10% of the respondents report taking a different action in 2016 compared to 2018. To examine factors behind voter turnout, I limit the data to individuals who did not vote in 2016, then switched to voting in 2018.  This group most closely represents a drive in turnout, and may hold the best clues about changing voter behavior.  After subsetting, we have observations. 
+
+
+
+
+## Importance and Context
+
+According to a Fox News report on February 2 local time, the approval rating of California Governor Gavin Newsom has plummeted, and this situation may exacerbate the possibility of his removal. A poll conducted by the Berkeley Institute of Government on more than 10,000 registered voters in California found that Newsom’s work performance was only approved by 46%, a sharp drop from his 64% approval rate in September last year. In addition, Newsom has been widely criticized for the previous strict stay-at-home order. Up to now, 1.3 million people have signed a petition calling for his removal as governor. The report pointed out that 36% of California voters currently support the removal of Newsom, and most of them support the Republican Party. They are dissatisfied with Newsom's performance in handling the epidemic. In addition, less than one-third of the interviewees said that the governor had “excelled” in responding to the epidemic. In recent weeks, the number of new confirmed cases of new coronary pneumonia in a single day in California has declined. According to statistics from the state, only 12,000 new confirmed cases were reported on the 2nd, while in December last year, the highest number of new confirmed cases in a single day exceeded 50,000.  
+
+Was the infection of Covid-19 impacts people approve or disapprove their governer handling Covid-19? The answer to this question could provide guidance to future political campaigns hoping to increase voter turnout. It could also provide useful background for governments that are interested civic participation. A better understanding of the factors that polarize society, and how they express themselves through the voting process, may also help those hoping to counteract that polarization. Since the beginning of the pandemic, and the resulting economic slump, Governors have been directing their states’ resources where they are needed most and where they will achieve the greatest impact. As practical problem solvers, Governors are effectively delivering state services to protect public health and to stimulate economic recovery and growth. 
+ 
+ 
+ 
+ 
+## Most appropriate test 
+ I then test whether this subgroup reports being more angry or more afraid. Because these variables are measured on ordinal scales, a non-parametric test is appropriate.  Furthermore, the data is paired, since each individual has a pair of measurements.   Some researchers may use a signed-rank test in these circumstances, but that test, while technically non-parametric, requires data on a metric scale.  Instead, I will use a sign test, implemented in R using `binom.test`. 
+
+The sign test requires the following assumptions to be true:
+
+- i.i.d. data.  The ANES 2018 pilot uses a panel of individuals that use YouGov.  This is an online system that rewards individuals for filling out surveys.  There is a possibility that this introduces dependencies.  For example, participants may tell friends or family members about YouGov, resulting in a cluster of individuals that give similar responses.  Nevertheless, YouGov claims to have millions of users, which suggests that links between individuals should be rare.
+
+- Ordinal scale. The data levels showing an increase in intensity from "not at all" to "extremely."  There is some question, however, as to whether participants use the same scale when they think about anger and fear. Another way of noting this is to ask whether voters hold the same anchoring points on these scales.
+
+ 
+## Test Limitations 
+
+We have conducted this test based on the data available in the ANES. However, even after an appropriate analysis of the data on hand, it would not be possible know why people chose to **not** vote in the 2016 election. Perhaps someone chose not to vote in the 2016 election because they were angry. If this were to be the case, then our study design cannot find an effect of anger-inducing language in the 2018 data. And so, while the data that test on does fails to reject the null hypothesis that there is a difference in anger and fear as a motivation for increased voting in 2018, it is possible that the very nature of this observational data has precluded our ability to produce a satisfactory answer to the question. 
+
+ 
+ 

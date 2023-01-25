@@ -1,0 +1,145 @@
+---
+title: "HW week 11"
+author: "Da Qi Ren"
+subtitle: 'w203: Statistics for Data Science'
+
+output:
+  pdf_document: default
+  html_document: default
+---
+\newcommand{\E}{\text{E}}
+\newcommand{\V}{\text{V}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Cov}{\mathbb{\text{Cov}}}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r load packages and set options, include=FALSE}
+library(tidyverse) 
+library(magrittr)
+library(knitr)
+library(patchwork)
+library(ggplot2)
+#library(ggpubr)
+#library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+library(haven)
+library(nhstplot)
+library(gplots)
+library(kableExtra)
+library(readxl)
+library(lmtest)
+library(stargazer)
+
+theme_set(theme_bw())
+options(tinytex.verbose = TRUE)
+```
+
+
+
+
+
+## Regression analysis of YouTube dataset
+
+You want to explain how much the quality of a video affects the number of views it receives on social media.  **This is a causal question.**
+
+You will use a dataset created by Cheng, Dale and Liu at Simon Fraser University.  It includes observations about 9618 videos shared on YouTube.  Please see [this link](http://netsg.cs.sfu.ca/youtubedata/) for details about how the data was collected.
+
+You will use the following variables:
+
+- views: the number of views by YouTube users.
+
+- rate: the average rating given by users.
+
+- length: the duration of the video in seconds.
+
+You want to use the `rate` variable as a proxy for video quality.  You also include `length` as a control variable.  You estimate the following ols regression:
+
+$$\text{views} =   789 +  2103    \text{ rate} +      3.00 \text{ length} $$
+a. Name an omitted variable that you think could induce significant omitted variable bias.  Argue whether the direction of bias is towards zero or away from zero.
+
+
+```{r}
+df<-read.csv('videos001.csv')
+
+#df<-df %>% 
+#  select('rate', 'views', 'length', 'ratings') 
+
+nrow(df)
+df <- na.omit(df)
+nrow(df)
+ 
+write.csv(df, "c.csv")
+cor(df$rate, df$ratings)
+cor(df$ratings, df$length)
+
+#cor(dat$views ~ dat$rate + dat$length + dat$ratings  )
+#cor(dat$views ~ dat$rate + dat$length + dat$ratings  )
+
+```
+
+
+```{r}
+
+c2 <- lm(df$views ~ df$rate + df$length )
+
+summary(c2)
+
+cor(df$views, df$ratings)
+cor(df$views, df$rate)
+cor(df$views, df$length)
+cor(df$ratings, df$rate)
+cor(df$ratings, df$length)
+cor(df$rate, df$length)
+
+```
+
+ 
+
+
+b. Provide a story for why there might be a reverse causal pathway (from the number of views to the average rating).  Argue whether the direction of bias is towards zero or away from zero.
+
+```{r}
+
+c3 <- lm(df$rate ~ df$views)
+summary(c3)
+stargazer(c3, type = 'text' )
+
+ 
+```
+
+
+
+
+c. You are considering adding a new variable, `rating`, which represents the total number of ratings.  Explain how this would affect your measurement goal.
+
+
+```{r}
+c4 <-lm(df$views ~ df$rate + df$length + df$ratings)
+summary(c4)
+```
+
+
+
+
+```{r}
+
+# df$logviews = log(df$views) 
+# df$lograte =  log(df$rate) 
+# df$loglength = log(df$length) 
+# df$ratings = log(df$ratings)
+# df <- df[is.finite(rowSums(df)),]
+# df <- na.omit(df)
+# 
+# 
+# c5 <-lm(df$logviews ~ df$lograte + df$loglength + df$ratings)
+# summary(c5)
+
+```
+

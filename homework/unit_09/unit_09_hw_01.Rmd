@@ -1,0 +1,313 @@
+---
+title: "Are survey respondents who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic?"
+author: ''
+output:
+  bookdown::pdf_document2: 
+    toc: true
+    latex_engine: xelatex
+---
+
+\clearpage
+
+
+```{r load packages and set options, include=FALSE}
+library(tidyverse) 
+library(magrittr)
+library(knitr)
+library(patchwork)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+library(haven)
+library(nhstplot)
+library(gplots)
+library(kableExtra)
+library(readxl)
+
+
+theme_set(theme_bw())
+options(tinytex.verbose = TRUE)
+```
+
+
+
+```{r}
+
+#setwd("~/Desktop/r-novice-inflammation/")
+
+dat<-read.csv('video_games.csv')
+
+#dat <- select(dat, 'Metrics.Sales', 'Metrics.Review.Score', 'Length.Completionists.Average')
+#rename(developer = assignee.login) %>%
+  
+  
+df<-dat %>% 
+  select('Metrics.Sales', 'Metrics.Review.Score', 'Length.Completionists.Average')%>% 
+  rename(sales = Metrics.Sales, score = Metrics.Review.Score, length = Length.Completionists.Average )
+
+```
+
+
+
+
+```{r}
+
+summary(df)
+
+```
+
+
+
+
+```{r}
+
+fit <- lm(df$score ~ df$sales)
+par(mfrow=c(2,2))
+plot (fit)
+ 
+
+fit <- lm(df$length ~ df$score)
+par(mfrow=c(2,2))
+plot (fit)
+
+
+fit <- lm(df$length ~ df$sales)
+par(mfrow=c(2,2))
+plot (fit)
+
+
+
+
+
+```
+
+
+
+```{r}
+
+library(gvlma)
+
+fit <- lm(df$length ~ df$score + df$sales)
+gvmodel <- gvlma(fit) 
+summary(gvmodel) 
+ 
+
+
+```
+
+
+```{r}
+
+library(car)
+crPlots(fit)
+
+```
+normal ? 
+
+
+```{r}
+
+
+qqPlot(fit, labels = row.names(df), id.method = 'identify', simulate = TRUE, main = 'Q-Q Plot')
+
+```
+
+
+```{r}
+ncvTest(fit)
+```
+
+
+```{r}
+durbinWatsonTest(fit)
+```
+
+
+```{r}
+vif(fit)
+```
+
+
+
+```{r include=FALSE}
+df <- subset(df, select=c("groups", "approval_status"))
+df <- na.omit(df) 
+
+```
+
+
+
+```{r include=FALSE}
+df1<-table(df)
+
+df2 <- data.frame(t(df1[-1]))
+colnames(df2) <- df1[, 1]
+
+df2 <- as.data.frame(table(df2))
+
+```
+
+```{r summary-table, echo = FALSE}
+
+kable(
+  df1,
+  digits = 2,
+  caption = 'Cross Tab of Covid-19 infection and the approval status:  rank of -2, -1, 1, 2  represent strong disapproval, disapproval, approval and strong approval, respectively. Note that, we use 0 represent nutral or no responds that are not included in the test. ', 
+  booktabs = TRUE, 
+)
+
+```
+
+
+```{r echo=FALSE}
+
+df2<-group_by(df, groups) %>%
+  summarise(
+    count = n(),
+    mean = mean(approval_status, na.rm = TRUE),
+    sd = sd(approval_status, na.rm = TRUE)
+  )
+
+```
+
+```{r summary-table-2, echo=FALSE}
+kable(
+  df2,
+  digits = 2,
+  caption = 'Cross Tab of Covid-19 infection and the approval status :  ', 
+  booktabs = TRUE, 
+)
+
+```
+
+
+
+```{r p1, echo=FALSE, fig.align='center', fig.height=3, fig.width=6}
+library("ggpubr")
+
+#ggboxplot(df, x = "groups", y = "approval_status",
+#          color = "groups",
+#          palette = c("red", "blue"),
+#          )
+ 
+df %>%
+  ggplot(aes(x=groups, y = approval_status)) +
+  geom_boxplot(aes(color=groups)) +
+  scale_color_manual(values = c("blue", "red")) +
+  stat_summary(fun=mean, geom="point", shape=23, size=2) +
+  stat_summary(aes(label=paste0("Mean = ", round(..y..,2))), fun=mean, geom="text", 
+               size=4, hjust = -0.1) +
+  labs(
+    x = "groups",
+    y = "approval_status",
+    color = "groups"
+    )
+
+```
+ 
+## Most appropriate test 
+
+### Data Check
+
+An underlying assumption for appropriate use of the tests described was that the continuous outcome was approximately normally distributed or that the samples were sufficiently large (usually n1> 30 and n2> 30) to justify their use based on the Central Limit Theorem. 
+
+- i.i.d. The data from the 2020 American National Election Studies (ANES), which is an observational data set, based on a sample of respondents drawn from the YouGov platform. Letters and emails pushed household members to respond to a screener on the web. This could break independent as well as the identically distributed assumption, since people effect each other in one family and this may result biases. In addition, Covid-19 is highly contagious, it is very possible for family members, friends, colleagues and people in the same community to be tested as positive as a group. This virus-transmission-based clustering could break our assumption of underlining distribution independence and identically distribution.
+
+- Ordinal scale. The chose of strong approval and not strong approval may be based on 
+individual characters and personalities, we are not certain whether participants use the same scale. 
+
+In detail, to find the most appropriate test, I did the check test as the follows: 
+
+- 1: I use the function of shapiro.test() to calculate the Shapiro-Wilk test for each set of samples. In the Shapiro-Wilk normality test result, p-value < 2.2e-16, which is less than the significance level of 0.05, indicating that the distribution of the two sets of data is significantly different from the normal distribution.  
+```{r echo=FALSE,fig.align='center',fig.height=3, fig.width=4}
+
+with(df, shapiro.test(approval_status[groups == "Covid-19 Infected"]))# p = 0.017
+
+```
+
+- 2: Do these two populations conform to the homogeneity of variance? I use F test to test the homogeneity of variance with the var.test() function. The F test results p = 0.9084. It is greater than the significance level alpha = 0.05. Therefore, there is no significant difference between the variances of the two sets of data. Therefore, we believe that the variance of the two groups is equal (homogeneity of variance).
+
+
+```{r echo=FALSE}
+res.ftest <- var.test(approval_status ~ groups, data = df)
+res.ftest
+
+```
+
+
+### Most appropriate test 
+
+A nonparametric test is appropriate, particularly two independent samples Wilcoxon rank sum test.  I then test whether respondents who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic. The modules on hypothesis testing two independent samples, i.e. a group has family members infected, and another group without infected.  A nonparametric test to compare outcomes between two independent groups is the Wilcoxon Rank Sum Test. The parametric test compares the means  between independent groups. In contrast, the null and two-sided research hypotheses for the nonparametric test are stated as follows:
+
+Null Hypothesis,
+$$
+H_0:\\
+p=0.5\\
+$$
+$$
+P(Someone\ infected\ by\ COVID19\ at\ home\ disapprove\ the\ governor)
+$$
+$$
+= P(No\ one\ infected\ by\ COVID19\ at\ home\ disapprove\ the\ governor)  
+$$
+
+
+
+\newpage
+
+
+
+Alternative Hypothesis,
+$$
+H_1:\\
+p \neq 0.5\\ 
+$$
+$$
+P(Someone\ infected\ by\ COVID19\ at\ home\ disapprove\ the\ governor) 
+$$
+$$
+≠  P(No\ one\ infected\ by\ COVID19\ at\ home\ disapprove\ the\ governor)  
+$$
+
+\
+A two-sided research hypothesis is used and, thus, the research hypothesis H0 indicates that someone in home infected by COVID-19 have equal probability disapprove the governors comparing with respondents who have no one infected at home. The alternative hypothesis H1 indicates that someone in their home infected by COVID-19 have different probability to disapprove their governors. 
+ 
+```{r echo=FALSE}
+
+res <- wilcox.test( approval_status ~ groups, data = df, 
+                    var.equal = TRUE)
+res
+
+```
+### Interpretation of results 
+In the above result, the p value is the significance level of the Wilcoxon test (p-value = 0.04289). The p-value for the test is 0.04289, which is less than the significance level alpha = 0.05. The null hypothesis is rejected, we can conclude that who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic.
+
+
+### Practical Significance 
+I use Spearman’s rho test to estimate the above rank-based measure of association, because the data do not come from a bivariate normal distribution. In the result below: S is the value of the test statistic (S = 9.1505e+10); p-value is the significance level of the test statistic (p-value = 0.4288). In Spearmann rho test, we found the rho (Cor.coeff =-0.02246033), i.e. |rho| << 0.1.  We can conclude that the Covid-19 infection and governor approval are almost not correlated. In other words, it is not practically significant. 
+
+
+```{r echo=FALSE}
+res <-cor.test(df0$groups, df0$approval_status, method = "spearman")
+res
+```
+ 
+ 
+## Test Limitations 
+
+We have conducted this test based on the data available in the ANES. However, even after an appropriate analysis of the data on hand, the evidence shows only a  very small correlation between respondents who have had someone in their home infected by COVID-19 and the disapproval of the way their governor is handling the pandemic. People disapprove their governor could because of many different reasons, e.g the lock down of city caused great inconvenience to many households, and that is the true reason to disapprove their governor instead of being infected by Covid-19. If this was the case, then our study design couldn't find all the causes. Use more  data items to analysis could be helpful to give a more accurate result about the impact of Covid-19 infection on people's political preference.   
+ 
+In this test we use the Covid-19 infection as an evidence, but unfortunately, its not clear exactly how accurate any of these tests are (refer to a report by Harvard University [1] ). In addition, many people have not been tested their Covid-19 infection even with symptoms. More over, people may hold different attitude to Covid-19 pandemic, someone may still not believe the exist of Covid-19. Therefore we cannot infer any casual relationship between impact from Covid-19 and their sentiments towards their governors. 
+
+ 
+\newpage
+
+## Reference
+
+[1] https://www.health.harvard.edu/blog/which-test-is-best-for-covid-19-2020081020734
+
+
+ 

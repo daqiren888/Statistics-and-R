@@ -1,0 +1,39 @@
+---
+title: "Kmart’s Office Hours Week 10"
+author: "Kevin Martin"
+date: "11/9/2020"
+output: html_document
+---
+
+## Overview of Model Classes
+
+In this week's async we discussed 3 types of model here they are in summary
+
+### Predictive (Machine Learning)
+
+* **Amount of times you can/should run a significance test:** generally you set aside some untouched data for a final check of effectiveness, but besides that, run as many tests and model variations as you want.
+* **Level of Explainability:** Generally not needed. There are models where their creators don’t know exactly what’s going on
+* **Defines a causal relationship?:** I can’t even explain it, how am I gonna tell what caused it.
+* **Number of Covariates:** The more the merrier.
+
+### Explanatory/Causal (Experiments)
+
+* **Amount of times you can/should run a significance test: Before you run the experiment you should know exactly the test that you are going to run. Only run one test. Don’t peek at the data to inform what test you will run. If you do end up running other tests, include a disclaimer and mention that they are “further avenues of study that you might explore”**
+* **Level of Explainability:** You should be able to explain and justify every covariate that you used. Hopefully it’s based on previous research and your domain knowledge. For the variable of interest that you are regressing on, you should probably have a theoretical explanation that led to you doing the experiment in the first place.
+* **Defines a causal relationship?:** You can definitely define a causal relationship from an experiment. I think that alex and paul would probably advocate for this being the ONLY way that you can be SURE there’s a causal relationship.
+* **Number of covariates:** Your covariates should be kept to only a few. You should have good, well thought out reasons for including them.
+
+### Descriptive
+
+There’s a spectrum of things that you might term a descriptive model. You can think of a pseudo-predictive model on one end where you are doing an exploratory data analysis and you just want to see what’s important. and a pseudo-causal on the other end where you are doing an observational study that might get published in a journal.
+
+* **Amount of times you can/should run a significance test:** Depends on the context. 
+  * On the **pseudo-predictive end**,  if you know nothing about the field or the data set, you might want to do a bunch of plots, run a few tests try a couple of model specifications to get a feel for what’s going on. This could form some kind of baseline hypothesis as the output of an exploratory data analysis. 
+  * On the **pseudo-causal** end, if you are very familiar with the field in general, you might have some sort of new set of observational data that you have a hypothesis about given your background and you want to write a paper about it. In that case, only touch the data once when you do your test. Have your model spec before hand. 
+  * **In this class,** we don’t expect that you will have background knowledge in the data sets you’re dealing with so  in reality, you will operate on the predictive side of the scale, but we want you to keep in mind the more strict causal end.
+* **Level of Explainability:** Generally, you want to keep your number of covariates to a smaller amount more in line with the causal modeling. Depends on the context. 
+  * On the **pseudo-predictive** end,  You might just be looking to see what variables are important because you might not have a sense of it before you look at the data. 
+  * On the **pseudo-causal** end, you should know what’s going on with your covariates and have good reasons for formulating them the way you do. 
+  * **In this class**, we would like you to hypothesize on what’s going on with the different explanatory variables and why formulating them certain ways gives you better results. But, obviously, you won’t have the deep background on a lot of this stuff.
+* **Defines a causal relationship?:** Depends. I think that regardless of whether we should or not,  we always hope to point to some underlying causal relationship, but we actually CAN’T be sure that there’s a causal relationship without an experiment. There are some very good and clever papers in economics or public health (where often experiments just can’t happen) that try to establish causal relationships based on observational data and deep theoretical understanding. For example, the relationship between lung cancer and smoking is based on these descriptive models. No one is doing an experiment randomly assigning people to smoke or not.
+* **Number of covariates:** we try to limit it to a few that best explain the model.

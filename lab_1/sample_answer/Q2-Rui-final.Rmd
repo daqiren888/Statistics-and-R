@@ -1,0 +1,165 @@
+---
+title: 'Are Democratic voters more enthusiastic about Joe Biden or Kamala Harris'
+author: "Rui Li, Da Qi Ren, Dicky Woo"
+output:
+  bookdown::pdf_document2:
+    toc: true
+    latex_engine: xelatex
+---
+
+
+
+
+```{r load packages, message=FALSE, warning=FALSE, include=FALSE}
+
+library(tidyverse)
+library(haven)
+library(foreign)
+library(ggplot2)
+```
+
+\clearpage
+
+```{r load and clean data, message=FALSE, warning=TRUE, include=FALSE}
+
+preElection_ts <- read.spss('anes_timeseries_2020_spss_20210211.sav', to.data.frame=TRUE)
+
+#clean data and only include records with democratic registration
+
+#filter for just Democratic
+Democrats_df <- subset(preElection_ts, V201018 == "1. Democratic party")
+
+Democrats_df <- Democrats_df %>%
+  mutate(
+    Harris = V201153,
+    Biden = V201151
+  )
+
+
+#get summary for Biden's thermometer
+summary(Democrats_df$Biden)
+
+
+#get summary for Harris's thermometer
+summary(Democrats_df$Harris)
+
+
+```
+
+# Are Democratic voters more enthusiastic about Joe Biden or Kamala Harris?
+
+## Importance and Context
+Kamala Harris was one of the biggest opponents on the debate stage and then became Biden's vice president pick. With Biden winning the 2020 presidential election, it could be people voting Biden due to their enthusiasum about Biden. But, is it possible that people vote Biden because his successful strategy of picking Kamala Harris as his vice president? We already know Biden won 2020 election, It is of interest to find out if democratic voters are more enthusiastic about Biden or Harris. 
+
+
+```{r include=FALSE}
+#create new table for Biden and Harris Thermometer
+
+Biden_Harris <- Democrats_df[, c('Biden', 'Harris')]
+
+#Throw away non-numeric value
+
+Biden_Harris<- subset(Biden_Harris, grepl('^\\d+$', Biden_Harris$Biden))
+Biden_Harris<- subset(Biden_Harris, grepl('^\\d+$', Biden_Harris$Harris))
+
+##Compare
+Biden_Harris$Preference <- ifelse(as.numeric(as.character(Biden_Harris$Biden))>as.numeric(as.character(Biden_Harris$Harris)), 'Biden',ifelse(as.numeric(as.character(Biden_Harris$Biden)) < as.numeric(as.character(Biden_Harris$Harris)), 'Harris','Equal'))
+
+#Biden_Harris
+```
+
+
+
+## Description of Data
+We are using 2020 American National Election Studies(ANES) Time Series study. We only limit the thermometer feelings of respondents from the democratic registration party. In the survey, respondents were asked to fill in their feelings toward political leaders, which is called thermometer feelings. In this hypothesis test, we only compare democratic respondents' feelings toward Biden and Harris. 
+
+The thermometer feels contains values including 0-100 actual value, 998. Don't know, -4 Technical errors, and -9. Refused. We first excluded observations if respondent's thermometer feelings toward Biden or Harris are 998. Don't know, -4. Technical errors, or -9 refused, because we do not have enough information to infer a enthusiastic value to conduct comparison. After subsetting, we get 1788 observations.
+
+Even thermometer feels are filled in as actual values between 0 to 100, we cannot treat the value as metric value. Instead these feeling values need to be treated as ordinal data, because we cannot interpret two respondents having the same enthusiasm about Biden even they filled the same thermometer feelings value about Biden. Furthermore, we cannot interpret one is twice as enthusiastic about Biden as another if he/she filled in a doubled value than the other person in Biden's theometer feelings.
+
+Admittedly, we cannot compare enthusiasm level between individuals, we can compare the enthusiastic feelings toward Biden and Harris for one individual. We took the data and compare the thermometer feelings toward Biden and Harris to arrive at the individual's preference for these two political leader. If one scores higher for Harris than Biden, then we interpret this individual is more enthusiastic about Harris. 
+
+We show in Figure 1, 535 out of the 1788 observations are lmore enthusiastic about Biden, 527 are more enthusiastic about Harris, 726 equally enthusiastic about Biden and Harris. Base on the counts we do not anticipate there is a lot of difference in feelings toward Biden and Harris.
+
+
+<!-- Explain how your research question is operationalized, including whether the variables you create are appropriate to study the concepts in question. --> 
+<!-- What are some basic features of the data distribution? --> 
+<!-- What changes do you make to the data and why? --> 
+
+#grouped bar plot for Biden and Harris Preference
+
+
+```{r echo=FALSE, fig.height=3, fig.width=4}
+ggplot() +
+  geom_bar(data = Biden_Harris, aes(Preference),fill = "#FF6666") +
+  labs(title = "Enthusiasm Comparison")
+```
+
+
+
+## Most appropriate test 
+We then need to pick a hypthesis test to check whether Democratic registration respondents are more enthusiasm about Biden or Harris. Even though the value are from 0-100, these values are in ordinal scales, a non-parametric test is appropriate. Also, the feeling thermometer of Biden and Harris is a paired measures for each sample. These paired measurements can only be used to get a preference of that individual, rather than compared between individuals. Because we need to test a paired measurement on same sample, and the measurement is ordinal scale data, we choose to use a sign test, implemented in R by using `binom.test`. 
+$$
+Null\ Hypothesis\ H_0: \\
+p=0.5\\ P(More\ enthusiastic\ about\ Biden) = P(More\ enthusistic\ about\ Harris) 
+$$
+$$
+Alternative\ Hypothesis\ H_1: \\
+p≠0.5\\ P(More\ enthusiastic\ about\ Biden) ≠ P(More\ enthusistic\ about\ Harris)
+$$
+
+The sign test requires the following assumptions to be true:
+
+- i.i.d. data.  Letters and emails pushed household members from the sampled addresses to respond to a
+screener on the web. Once a screener interview was completed, responding households followed different protocols for survey mode based on assignment to different sample groups. All respondents who completed the post-election survey
+did so in the same mode used for the pre-election survey. These could be some circumstances breaking i.i.d assumptions:
+
+ 
+  
+|          1.This could break the assumptions of independence, since people from one household may tend to have the same political opinion. 
+|           2.political preference of people with higher social status or more influential individuals may swing other's political opinion. This |           breaks the identically distributed and independent assumptions.
+|           3.Some of the interviews are web interviews or vedio interviews, these rely on people having internet. This could potenially break 
+|           the identitical districution, because this form of interview may limit poor people who are wihtout access to internet.
+ 
+
+- Ordinal scale. Based on the data, we are not certain whether participants use the same scale when they think about Biden and Harris. Another way of noting this is to ask whether voters hold the same anchoring points on these scales.
+Especially, we see cases that respondent filled in thermometer feelings for one leader, and refused to score for the other leader. We throw away those observations, however, further surveys are needed to track why respondent are refused to score thermoeter feelings.
+
+
+
+
+## Test, results and interpretation
+
+```{r}
+Biden_Harris$Like_Biden = as.numeric(as.character(Biden_Harris$Biden)) > as.numeric(as.character(Biden_Harris$Harris))
+Biden_Harris$Like_Harris = as.numeric(as.character(Biden_Harris$Biden)) < as.numeric(as.character(Biden_Harris$Harris))
+
+
+binom.test(
+  x = sum(Biden_Harris$Like_Biden),
+  n = sum(Biden_Harris$Like_Biden)+sum(Biden_Harris$Like_Harris), 
+  p = 0.5,
+  alternative = c("two.sided", "less", "greater"),
+  conf.level = 0.95
+)
+
+```
+The result has a p value of 0.8299. We failed to reject the null hypothesis - people are equally enthusastic about Biden and Harris. We do not find enough evidence about people have preference between Biden and Harris. This test result confirmed what we anticipated based on Figure 1. 29.9 % of people more enthusiastic about Biden, 29.5% democratic respondent are more enthusiastic about Harris, and 40.6% of people equally enthusiastic about Biden and Harris. 
+
+Even Biden won Harris in democratic debates, this survey results shows that people have no strong preference for Biden over Harris. Also, This test gives us a confidence interval of 0.473 to 0.534. We have 95% confidence that the the ratio of probablity of people who are more enthusiastic about Biden over the probablity of people who are more enthusiastic about Harris fall between 0.473 and 0.534.
+
+
+#practical significance
+```{r}
+#CommonLanguageSizeEffect or CLES
+
+CLES <- (sum(Biden_Harris$Like_Biden) -sum(Biden_Harris$Like_Harris)) /nrow(Biden_Harris)
+CLES
+
+#Small Practical Significance
+
+```
+We also used common language size effect to evaludate the practical significance for the test result. We learned that people have no difference in enthusiasm about Biden and Harris. The practical significant score is 0.00447, which is smaller than 0.1. We can infer that "People equally enthusiastic about the Biden and Harris" have very little magnitude of practical significance.
+
+
+2.5 limitations

@@ -1,0 +1,292 @@
+---
+title: "Are survey respondents who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic?"
+author: 'Da Qi Ren, Rui Li, Dicky Woo'
+output:
+  bookdown::pdf_document2: 
+    toc: true
+    latex_engine: xelatex
+---
+
+\clearpage
+
+
+```{r load packages and set options, include=FALSE}
+library(tidyverse) 
+library(magrittr)
+library(knitr)
+library(patchwork)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+library(haven)
+library(nhstplot)
+library(gplots)
+library(kableExtra)
+library(readxl)
+
+
+theme_set(theme_bw())
+options(tinytex.verbose = TRUE)
+```
+
+
+# Are survey respondents who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic?
+
+
+
+## Importance and Context
+
+COVID-19 has affected every state, but no two governors have handled it in exactly the same way. Some, like Gov. Andrew Cuomo in New York and Gov. Gavin Newsom in California, have instituted long-term stay-at-home orders and mandatory shutdowns of nonessential businesses. Others, like Gov. Kristi Noem of South Dakota and Gov. Asa Hutchinson of Arkansas, have resisted placing sweeping restrictions on travel and business operations. In February, The approval rating of California Governor Gavin Newsom plummeted, and this situation may exacerbate the possibility of his removal. A poll conducted by the Berkeley Institute of Government on more than 10,000 registered voters in California found that Newsom’s work performance was only approved by 46%, a sharp drop from his 64% approval rate in September last year. In addition, Newsom has been widely criticized for the previous strict stay-at-home order. Report pointed out that 36% of California voters currently support the removal of Newsom, and most of them support the Republican Party. They are dissatisfied with Newsom's performance in handling the epidemic. In addition, less than one-third of the interviewees said that the governor had “excelled” in responding to the epidemic. In recent weeks, the number of new confirmed cases of new coronary pneumonia in a single day in California has declined. According to statistics from the state, only 12,000 new confirmed cases were reported on the 2nd, while in December last year, the highest number of new confirmed cases in a single day exceeded 50,000. While governors’ responses to the public health emergency have varied, one thing is true across all 50 states: Constituents are keeping a careful eye on how authorities are addressing COVID-19, and judging them accordingly. Our hypothesis test intends to investigate whether survey respondents who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic. 
+
+## Description of Data
+
+To respondents who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic?  We will address this question using data from the 2020 American National Election Studies (ANES). This is an observational dataset, based on a sample of respondents drawn from the YouGov platform.  I use data items 
+
+- V201624 group of people "Covid-19 infected" and " Not infected"   
+- V201145 approval or disapproval
+- V201146 strong or normal ( approval or disapproval ) 
+
+The first thing to note in this data there are differences in the rank ordering, i.e., strong disapproval, disapproval, approval and  strong approval. The next figure and table plots the relative prevalence of ANES respondent’s approval and disapproval.  I combine  V201145/V201146 as "approval _status",  with rank of   -2,  -1,  1,  2 to represent  strong disapproval, disapproval, approval and  strong approval, respectively. 
+
+ 
+ 
+\newpage
+
+ 
+
+```{r include=FALSE}
+dat<-read_sav('anes_timeseries_2020_spss_20210211.sav')
+
+df <- dat %>%
+        filter(V201624 == 1 | V201624 == 2 | V201145 ==1 | V201145 == 2 
+             | V201146 ==1 | V201146 == 2 ) %>%
+        select(V201624, V201145, V201146)
+
+df <- df %>%
+  mutate(
+    V201624 = case_when(
+      V201624 == 1 ~ 1, # Covid-19 Infected
+      V201624 == 2 ~ 0  # Not Infected 
+    ),
+    V201145 = case_when(
+      V201145 == 1 ~  1, # Approve 
+      V201145 == 2 ~ -1  # Not approve
+    ), 
+    V201146 = case_when(
+      V201146 == 1 ~ 2, # Strong (approve/not approve)
+      V201146 == 2 ~ 1  # Normal (approve/not approve)
+    )
+  )
+
+df$approval_status <- df$V201145 * df$V201146
+df$groups <- df$V201624
+df <- na.omit(df) 
+df0<-df
+```
+
+
+
+```{r include=FALSE}
+df$groups[df$groups == 0] <- "Not Infected"
+df$groups[df$groups == 1] <- "Covid-19 Infected"
+
+```
+
+
+```{r include=FALSE}
+df <- subset(df, select=c("groups", "approval_status"))
+df <- na.omit(df) 
+
+```
+
+
+
+```{r include=FALSE}
+df1<-table(df)
+
+df2 <- data.frame(t(df1[-1]))
+colnames(df2) <- df1[, 1]
+
+df2 <- as.data.frame(table(df2))
+
+```
+
+```{r summary-table, echo = FALSE}
+
+kable(
+  df1,
+  digits = 2,
+  caption = 'Cross Tab of Covid-19 infection and the approval status:  rank of -2, -1, 1, 2  represent strong disapproval, disapproval, approval and strong approval, respectively. ', 
+  booktabs = TRUE, 
+)
+
+```
+
+
+
+```{r echo=FALSE,fig.align='center', fig.height=3, fig.width=4}
+
+
+df1 <- as.data.frame(table(df))
+
+ggbarplot(df1, x = "groups", y = "Freq",
+          color = "approval_status", position = position_dodge(),
+          palette = c("black", "blue",  "brown", "red")) 
+
+```
+
+
+
+```{r echo=FALSE}
+
+df2<-group_by(df, groups) %>%
+  summarise(
+    count = n(),
+    mean = mean(approval_status, na.rm = TRUE),
+    sd = sd(approval_status, na.rm = TRUE)
+  )
+
+```
+
+```{r summary-table-2, echo=FALSE}
+kable(
+  df2,
+  digits = 2,
+  caption = 'Cross Tab of Covid-19 infection and the approval status :  ', 
+  booktabs = TRUE, 
+)
+
+```
+
+
+
+```{r p1, echo=FALSE,fig.align='center', fig.height=3, fig.width=6}
+library("ggpubr")
+
+#ggboxplot(df, x = "groups", y = "approval_status",
+#          color = "groups",
+#          palette = c("red", "blue"),
+#          )
+ 
+df %>%
+  ggplot(aes(x=groups, y = approval_status)) +
+  geom_boxplot(aes(color=groups)) +
+  scale_color_manual(values = c("blue", "red")) +
+  stat_summary(fun=mean, geom="point", shape=23, size=2) +
+  stat_summary(aes(label=paste0("Mean = ", round(..y..,2))), fun=mean, geom="text", 
+               size=4, hjust = -0.1) +
+  labs(
+    x = "groups",
+    y = "approval_status",
+    color = "groups"
+    )
+
+```
+
+
+\newpage
+ 
+## Most appropriate test 
+
+### Data Check
+
+An underlying assumption for appropriate use of the tests described was that the continuous outcome was approximately normally distributed or that the samples were sufficiently large (usually n1> 30 and n2> 30) to justify their use based on the Central Limit Theorem. 
+
+- i.i.d. The data from the 2020 American National Election Studies (ANES), which is an observational data set, based on a sample of respondents drawn from the YouGov platform. Letters and emails pushed household members to respond to a screener on the web. This could break independent as well as the identically distributed assumption, since people effect each other in one family and this may result biases. In addition, Covid-19 is highly contagious, it is very possible for family members, friends, colleagues and people in the same community to be tested as positive as a group. This virus-transmission-based clustering could break our assumption of underlining distribution independence and identically distribution.
+
+- Ordinal scale. The chose of strong approval and not strong approval may be based on 
+individual characters and personalities, we are not certain whether participants use the same scale. 
+
+In detail, to find the most appropriate test, I did the check test as the follows: 
+
+- 1: Does the data of each of the two groups obey a normal distribution?
+I use the function of shapiro.test() to calculate the Shapiro-Wilk test for each set of samples. In the Shapiro-Wilk normality test result, p-value < 2.2e-16, which is less than the significance level of 0.05, indicating that the distribution of the two sets of data is significantly different from the normal distribution.  
+ 
+```{r echo=FALSE,fig.align='center',fig.height=3, fig.width=4}
+
+with(df, shapiro.test(approval_status[groups == "Covid-19 Infected"]))# p = 0.017
+
+ggdensity(df0$groups, 
+          main = "Plot Data",
+          xlab = "data")
+```
+
+ 
+ 
+ 
+- 2: Do these two populations conform to the homogeneity of variance? I use F test to test the homogeneity of variance with the var.test() function. The F test results p = 0.9084. It is greater than the significance level alpha = 0.05. Therefore, there is no significant difference between the variances of the two sets of data. Therefore, we believe that the variance of the two groups is equal (homogeneity of variance).
+
+
+```{r echo=FALSE}
+res.ftest <- var.test(approval_status ~ groups, data = df)
+res.ftest
+
+```
+
+
+### Most appropriate test 
+
+Due to the combination of the above three assumptions, also because the data does not conform to a normal distribution, we cannot use the student-t test. A nonparametric test is appropriate, particularly two independent samples Wilcoxon rank sum test.  
+
+I then test whether respondents who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic. The modules on hypothesis testing two independent samples, i.e. a group has family members infected, and another group without infected.  A nonparametric test to compare outcomes between two independent groups is the Wilcoxon Rank Sum Test. The parametric test compares the means  between independent groups. In contrast, the null and two-sided research hypotheses for the nonparametric test are stated as follows:
+
+Null Hypothesis,
+$$
+H_0:\\
+p=0.5\\
+$$
+$$
+P(Someone\ infected\ by\ COVID19\ at\ home\ disapprove\ the\ governor)
+$$
+$$
+= P(No\ one\ infected\ by\ COVID19\ at\ home\ disapprove\ the\ governor)  
+$$
+
+Alternative Hypothesis,
+$$
+H_1:\\
+p \neq 0.5\\ 
+$$
+$$
+P(Someone\ infected\ by\ COVID19\ at\ home\ disapprove\ the\ governor) 
+$$
+$$
+≠  P(No\ one\ infected\ by\ COVID19\ at\ home\ disapprove\ the\ governor)  
+$$
+
+\
+A two-sided research hypothesis is used and, thus, the research hypothesis H0 indicates that someone in home infected by COVID-19 have equal probability disapprove the governors comparing with respondents who have no one infected at home. The alternative hypothesis H1 indicates that someone in their home infected by COVID-19 have different probability to disapprove their governors. 
+ 
+```{r echo=FALSE}
+
+res <- wilcox.test( approval_status ~ groups, data = df, 
+                    var.equal = TRUE)
+res
+
+```
+### Interpretation of results 
+In the above result, the p value is the significance level of the Wilcoxon test (p-value = 0.04289). The p-value for the test is 0.04289, which is less than the significance level alpha = 0.05. The null hypothesis is rejected, we can conclude that who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic.
+
+
+### Practical Significance 
+I use Spearman rank correlation coefficient to test the practical significance. Spearman’s rho statistic is often used to estimate a rank-based measure of association, and used if the data do not come from a bivariate normal distribution. In the result below: S is the value of the test statistic (S = 9.1505e+10); p-value is the significance level of the test statistic (p-value = 0.4288). For Spearmann correlation coefficient it’s rho (Cor.coeff =-0.02246033). The rho-value of the test is -0.02246033, i.e. |rho| << 0.1,  we can conclude that the Covid-19 infection and governor approval are almost not correlated. In other words, it is not practically significant. 
+ 
+ 
+
+```{r echo=FALSE}
+res <-cor.test(df0$groups, df0$approval_status, method = "spearman")
+
+res
+
+```
+ 
+ 
+## Test Limitations 
+
+We have conducted this test based on the data available in the ANES. However, even after an appropriate analysis of the data on hand, it shows only a medium correlation to support the conclusion that who have had someone in their home infected by COVID-19 more likely to disapprove of the way their governor is handling the pandemic. People disapprove their governor could because of many different reasons. If this were to be the case, then our study design couldn't find all the causes. Use more  data items to analysis could be helpful to give a more accurate result about the Covid-19 inspections.  
+ 
+ 
+ 

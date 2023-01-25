@@ -1,0 +1,32 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Solution 3.a-c, R code and results:
+
+#a) to calculate the results using pnorm fuctione:  
+
+```{r}
+prob<-pnorm(60.5,50,5)-pnorm(53.5,50,5)
+sprintf('By calculation, the probability to get 54~60 heads is %.4f',prob)
+```
+
+
+#b) Simulate the flips
+
+```{r}
+
+flips<- function() {
+   s<- sample(c(0,1),size=100,replace=TRUE)
+   return(sum(s))
+}
+
+#the random seed
+set.seed(10000)
+x<- replicate(10000,flips())
+prob2<-sum(x>=54 & x<=60)/10000
+sprintf('By simulation, the fraction to get 54~60 heads is %.4f',prob2)
+```
+

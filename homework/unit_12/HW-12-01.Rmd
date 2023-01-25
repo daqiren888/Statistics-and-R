@@ -1,0 +1,217 @@
+---
+title: "HW week 12"
+author: "Da Qi Ren"
+subtitle: 'w203: Statistics for Data Science'
+output:
+  pdf_document: default
+  html_document: default
+---
+\newcommand{\E}{\text{E}}
+\newcommand{\V}{\text{V}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Cov}{\mathbb{\text{Cov}}}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load packages and set options, include=FALSE}
+library(tidyverse) 
+library(magrittr)
+library(knitr)
+library(patchwork)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+library(haven)
+library(nhstplot)
+library(gplots)
+library(kableExtra)
+library(readxl)
+library(lmtest)
+library(stargazer)
+library(readxl)
+library(stargazer)   # fancy model tables
+library(sandwich)    # White standard errors
+
+
+knitr::opts_chunk$set(echo = TRUE)
+theme_set(theme_bw())
+options(tinytex.verbose = TRUE)
+
+```
+
+
+
+## Regression analysis of YouTube dataset
+
+You want to explain how much the quality of a video affects the number of views it receives on social media.  **This is a causal question.**
+
+You will use a dataset created by Cheng, Dale and Liu at Simon Fraser University.  It includes observations about 9618 videos shared on YouTube.  Please see [this link](http://netsg.cs.sfu.ca/youtubedata/) for details about how the data was collected.
+
+You will use the following variables:
+
+- views: the number of views by YouTube users.
+
+- rate: the average rating given by users.
+
+- length: the duration of the video in seconds.
+
+You want to use the `rate` variable as a proxy for video quality.  You also include `length` as a control variable.  You estimate the following ols regression:
+
+$$\text{views} =   789 +  2103    \text{ rate} +      3.00 \text{ length} $$
+
+a. Name an omitted variable that you think could induce significant omitted variable bias.  Argue whether the direction of bias is towards zero or away from zero.
+
+
+### ANSWER: 
+
+
+I firstly imported data from the csv file, and did cleaning and checking up by using summmary() and corrplot: 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+df<-read.csv('videos001.csv')
+df <- subset(df, select = c('age', 'rate', 'views', 'length', 'ratings'))  
+
+df <- na.omit(df)
+nrow(df)
+summary(df)
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ 
+corrplot::corrplot(cor(df),method = "color",order="AOE", 
+                   diag=FALSE, addCoef.col = "black", addCoefasPercent = TRUE)
+
+```
+
+
+
+
+
+I then answer this question in 2 ways: 
+
+### (Method 1) 
+
+I name an omitted variable that is not in the given data set, called "recommendation",  representing the status if the video is recommended by the YOUTUBE system.  
+
+Therefore, 
+
+$$\text{views} = 789 +  2103 \text{ rate} +  3.00 \text{ length} + \beta \times \text{recommendation} + u   $$
+and, $$ \text{recommendation}  =\alpha0 + \alpha1 \times \text{rate} + u $$
+
+most likely,  $$\  \beta > 0\  \text{and}\    \alpha1 > 0, \ \text{then OMVB} =   \beta \times \alpha1 > 0$$.
+
+And the coefficiency of rate is 2103 >0,  therfore the direction of bias is away from zero.
+
+
+### (Method 2) 
+Using the data that already in videos.csv file.  I found one omitted variable "age" that the direction of bias away from zero. 
+I break down the components of the omitted variable bias below. 
+ 
+$$\text{views} = 789 +  2103 \text{ rate} +  3.00 \text{ length} - 36.87 \text{age} + u   $$
+and, $$ \text{age}  =\alpha0 - 10.60\text{rate} + u $$
+
+Therefore,  $$\text{OMVB} > 0$$.
+
+And the coefficiency of rate is 2103 >0, therefore direction of bias is away from zero.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ 
+a1 <- sign(cor(df$views, df$age))
+a2 <- sign(cor(df$rate, df$age))
+a3 <- sign(cor(df$length, df$age))
+a4 <- sign(cor(df$age, df$rate))
+ 
+k1 <- lm(df$views ~ df$age)
+k2 <- lm(df$rate ~ df$age)
+k3 <- lm(df$length ~ df$age)
+k4 <- lm(df$age ~ df$rate)
+k7 <- lm(df$views ~ df$rate + df$length + df$age)
+
+```
+
+
+
+```{r basic stargazer, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+stargazer(k1, k2, k3, k4, k7, type='text', se = list(sqrt(diag(vcovHC(k1))),sqrt(diag(vcovHC(k2))), sqrt(diag(vcovHC(k3))), sqrt(diag(vcovHC(k4))), sqrt(diag(vcovHC(k7)))), font.size = "small",  align = TRUE,  omit.stat=c("LL","ser","f"), column.sep.width = "-30pt")
+
+ 
+```
+
+ 
+ 
+
+\newpage
+
+b. Provide a story for why there might be a reverse causal pathway (from the number of views to the average rating).  Argue whether the direction of bias is towards zero or away from zero.
+
+
+### ANSWER
+
+- Yes, there is  a reverse causal pathway (from the number of views to the average rating), refer to the model analysis below. 
+
+- The story is: the more people watch the video, the more ratings the video will have. This is very resonable. 
+
+- Bias directions: from the model, I find the coefficiency of views is 0.001 >0,  direction of bias is away from zero.
+
+$$\text{ratings} = 7.11 +  0.001 \text{ views} + u   $$
+ 
+
+
+
+- Finding: Though it is of positive direction, but the coefficiency is really a small number, which means increasing the number of views will not significantly impact the number of ratings. usually 0.1 percent of people will give a rate after watching the video.   
+ 
+ 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+c3 <- lm(df$ratings ~ df$views)
+summary(c3)
+stargazer(c3, type = 'text' )
+sprintf("a1 is %d", (a1 <- sign(cor(df$views,df$rate))))
+
+```
+
+
+\newpage
+
+
+c. You are considering adding a new variable, `rating`, which represents the total number of ratings.  Explain how this would affect your measurement goal.
+
+### ANSWER
+
+
+Adding the new variable `rating` would significantly improve the measurement of the model: 
+
+I compare the measurement outcomes from 2 different models using summary() and anova() functions. The output of summary(oldmodel) shows multiple R-squared = 0.011, and the output of summary(newmodel) shows multiple R-squared = 0.5178. which means newmodel fits the data better than oldmodel. 
+
+The function of anova(oldmodel, newmodel) compares models statistically. The anova() function will take the model objects as arguments, and return an ANOVA testing whether the more complex model is significantly better at capturing the data than the simpler model. If the resulting p-value is sufficiently low (usually less than 0.05), we conclude that the more complex model is significantly better than the simpler model, and thus favor the more complex model. If the p-value is not sufficiently low (usually greater than 0.05), we should favor the simpler model. Here the newmodel has p value  < 2.2e-16 , which mean the newmodel is significantly better than the oldmodel. 
+
+ 
+ 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ 
+oldmodel <-lm(df$views ~ df$rate + df$length)
+newmodel <-lm(df$views ~ df$rate + df$length + df$ratings)
+
+ 
+summary(oldmodel)
+summary(newmodel)
+
+anova(oldmodel, newmodel)
+
+```
+ 

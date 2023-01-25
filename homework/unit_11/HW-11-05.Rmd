@@ -1,0 +1,238 @@
+---
+title: "HW week 11"
+author: "Da Qi Ren"
+subtitle: 'w203: Statistics for Data Science'
+output:
+  pdf_document: default
+  html_document: default
+---
+\newcommand{\E}{\text{E}}
+\newcommand{\V}{\text{V}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Cov}{\mathbb{\text{Cov}}}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load packages and set options, include=FALSE}
+library(tidyverse) 
+library(magrittr)
+library(knitr)
+library(patchwork)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+library(haven)
+library(nhstplot)
+library(gplots)
+library(kableExtra)
+library(readxl)
+library(lmtest)
+library(stargazer)
+library(readxl)
+library(stargazer)   # fancy model tables
+library(sandwich)    # White standard errors
+
+
+knitr::opts_chunk$set(echo = TRUE)
+theme_set(theme_bw())
+options(tinytex.verbose = TRUE)
+
+```
+
+
+
+## Regression analysis of YouTube dataset
+
+You want to explain how much the quality of a video affects the number of views it receives on social media.  **This is a causal question.**
+
+You will use a dataset created by Cheng, Dale and Liu at Simon Fraser University.  It includes observations about 9618 videos shared on YouTube.  Please see [this link](http://netsg.cs.sfu.ca/youtubedata/) for details about how the data was collected.
+
+You will use the following variables:
+
+- views: the number of views by YouTube users.
+
+- rate: the average rating given by users.
+
+- length: the duration of the video in seconds.
+
+You want to use the `rate` variable as a proxy for video quality.  You also include `length` as a control variable.  You estimate the following ols regression:
+
+$$\text{views} =   789 +  2103    \text{ rate} +      3.00 \text{ length} $$
+a. Name an omitted variable that you think could induce significant omitted variable bias.  Argue whether the direction of bias is towards zero or away from zero.
+
+
+ANSWER: 
+
+
+I answer this question in 2 ways: 
+
+(Method 1) Name an omitted variable "recommendation" representing if the video is recommended by the system, this data is not in the given data set. Therefore, 
+
+#              $$\text{views} =   789 +  2103    \text{ rate} +      3.00 \text{ length} + \beta \times recommendation  $$
+#              $$\text{ ate} =\alpha_0 + \alpha_1 \times recommendation  $$
+# $$if\  \beta2 > 0\  and\    \alpha1 > 0 \  then\ OMVB =   \beta2 \times \alpha1 > 0 . \ And,  \  \  if \  \beta1 > 0 $$ 
+# the OLS coefficient on views will scaled away from zero (more positive) gaining statistical significance. 
+
+\newpage
+
+(Method 2) Using the data in videos.csv file.  Estimator Positively Biased Away from Zero In this case, we have an estimator that is biased in the positive direction. Since the coefficient that it is associated with is positive as well we would say it is biased away from zero. We break down the components of the omitted variable bias below. 
+
+
+
+```{r}
+
+df<-read.csv('videos001.csv')
+
+#df<-df %>% 
+#  select('rate', 'views', 'length', 'ratings') 
+df <- subset(df, select = c('rate', 'views', 'length', 'ratings'))  
+nrow(df)
+df <- na.omit(df)
+ 
+k1 <- lm(df$views ~ df$rate + df$length)
+summary(k1)
+
+```
+
+
+```{r}
+ 
+sprintf("a1 is %d", (a1 <- sign(cor(df$views,df$ratings))))
+sprintf("a2 is %d", (a2 <- sign(cor(df$rate ,df$ratings))))
+sprintf("a2 is %d", (a2 <- sign(cor(df$length ,df$ratings))))
+sprintf("Estimation are all positive")
+
+k1 <- lm(df$views ~ df$ratings)
+k2 <- lm(df$rate ~ df$ratings)
+k3 <- lm(df$length ~ df$ratings)
+k7 <- lm(df$views ~ df$rate + df$length + df$ratings)
+
+stargazer(k1, k2, k3, k7,  type = "text")
+
+```
+
+ 
+Estimator Positively Biased Away from Zero In this case, we have an estimator that is biased in the positive direction. Since the coefficient that it is associated with is positive as well we would say it is biased away from zero. We break down the components of the omitted variable bias below. 
+
+
+
+```{r echo=FALSE}
+
+k1 <- lm(df$views ~ df$ratings)
+k2 <- lm(df$rate ~ df$ratings)
+k3 <- lm(df$length ~ df$ratings)
+k4 <- lm(df$views ~ df$ratings + df$length)
+k5 <- lm(df$views ~ df$rate + df$length)
+k6 <- lm(df$views ~ df$rate + df$ratings)
+k7 <- lm(df$views ~ df$rate + df$length + df$ratings)
+#stargazer(k1, k2, k3, k4, k5, k6, type = 'text', omit.stat = 'all')
+
+```
+
+
+
+
+```{r basic stargazer, echo=FALSE, warning=FALSE}
+
+stargazer(k1, k2, k3, k4, k5, k6, k7, type='text', se = list(sqrt(diag(vcovHC(k1))),sqrt(diag(vcovHC(k2))), sqrt(diag(vcovHC(k3))), sqrt(diag(vcovHC(k4))),sqrt(diag(vcovHC(k5))), sqrt(diag(vcovHC(k6)))), font.size = "small",  align = TRUE,  omit.stat=c("LL","ser","f"), column.labels = c("vw-rs","rt-rs","le-rs", "vw-rs-le", "vw-rt-le", "vw-rt-ls", "overall"), column.sep.width = "-20pt")
+
+ 
+```
+
+
+```{r}
+
+par(mfrow=c(1,3))
+plot(df$views,df$ratings, main="x1 against x4")
+plot(df$rate,df$ratings, main="x2 against x4")
+plot(df$length,df$ratings, main="x3 against x4")
+car::scatterplotMatrix(df[, c('rate', 'views', 'length', 'ratings')])
+```
+
+
+```{r}
+
+k6 <- lm(df$ratings ~ df$length)
+summary(k6)
+
+```
+
+
+
+```{r warning=FALSE}
+sprintf("a1 is %d", (a1    <- sign(cor(df$views,df$ratings))))
+sprintf("a2 is %d", (a2    <- sign(cor(df$rating, df$length))))
+sprintf("a3 is %d", (a3    <- sign(cor(df$ratings, df$rate))))
+sprintf("adir(estimate) is %d",(adir <- a1*a2*a3))
+#stargazer(mod1, mod2, type = "text")
+```
+
+ 
+
+
+```{r}
+
+## corrplot takes a correlation matrix as an arument
+  # needs the corrplot package
+corrplot::corrplot(cor(df),method = "color",order="AOE", 
+                   diag=FALSE, addCoef.col = "black", addCoefasPercent = TRUE)
+
+```
+
+
+
+```{r}
+
+cor(df$ratings, df$rate)
+cor(df$views, df$ratings)
+cor(df$views, df$rate)
+cor(df$views, df$length)
+cor(df$ratings, df$length)
+cor(df$rate, df$length)
+
+```
+
+Discuss of Omitted Variables 
+
+
+b. Provide a story for why there might be a reverse causal pathway (from the number of views to the average rating).  Argue whether the direction of bias is towards zero or away from zero.
+
+```{r}
+
+c3 <- lm(df$ratings ~ df$views)
+summary(c3)
+stargazer(c3, type = 'text' )
+sprintf("a1 is %d", (a1 <- sign(cor(df$views,df$rate))))
+
+```
+
+
+
+
+
+c. You are considering adding a new variable, `rating`, which represents the total number of ratings.  Explain how this would affect your measurement goal.
+
+
+```{r}
+ 
+c9 <-lm(df$views ~ df$rate + df$length)
+c10 <-lm(df$views ~ df$rate + df$length + df$ratings)
+
+#summary(c9, c10)
+anova(c9)
+anova(c10)
+
+anova(c9, c10)
+
+```
+
+When you use anova(lm.1,lm.2,test="Chisq"), it performs the Chi-square test to compare lm.1 and lm.2 (i.e. it tests whether reduction in the residual sum of squares are statistically significant or not). Note that this makes sense only if lm.1 and lm.2 are nested models.
+
+For example, in the 1st anova that you used, the p-value of the test is 0.82. It means that the fitted model "modelAdd" is not significantly different from modelGen at the level of α=0.05
+. However, using the p-value in the 3rd anova, the model "modelRec" is significantly different form model "modelGen" at α=0.1. 

@@ -1,0 +1,513 @@
+---
+title: "Politics Are Afoot!"
+author: 'Da Qi Ren'
+#date: "10/21/2020"
+output: pdf_document
+---
+
+# The Setup 
+
+There is *a lot* of money that is spent in politics in Presidential election years. So far, estimates have the number at about $11,000,000,000 (11 billion USD). For context, in 2019 Twitter's annual revenue was about \$3,500,000,000 (3.5 billion USD). 
+
+# The work 
+
+Install the package, `fec16`. 
+
+```{r}
+## install.packages('fec16')
+```
+
+This package is a compendium  of spending and results from the 2016 election cycle. In this dataset are 9 different datasets that cover: 
+
+- `candidates`: candidate attributes, like their name, a unique id of the candidate, the election year under consideration, the office they're running for, etc. 
+- `results_house`: race attributes, like the name of the candidates running in the election, a unique id of the candidate, the number of `general_votes` garnered by each candidate, and other information. 
+- `campaigns`: financial information for each house & senate campaign. This includes a unique candidate id, the total receipts (how much came in the doors), and total disbursements (the total spent by the campaign), the total contributed by party central committees, and other information. 
+
+# Your task 
+
+Describe the relationship between spending on a candidate's behalf and the votes they receive.
+
+# Your work 
+
+- We want to keep this work *relatively* constrained, which is why we're providing you with data through the `fec16` package. It is possible to gather all the information from current FEC reports, but it would require you to make a series of API calls that would pull us away from the core modeling tasks that we want you to focus on instead. 
+- Throughout this assignment, limit yourself to functions that are  within the `tidyverse` family of packages: `dplyr`, `ggplot`, `patchwork`, and `magrittr` for wrangling and exploration and `base`, `stats`, `sandwich` and `lmtest` for modeling and testing. You do not *have* to use these packages; but try to limit yourself to using only these. 
+
+```{r load packages, message=FALSE, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(sandwich)
+library(lmtest)
+library(fec16)
+library(scales) 
+library(compare)
+library(dplyr)
+library(gvlma)
+library(caret)
+library(e1071)
+library(car)
+library(ggpubr)
+library(cowplot)
+library(gridExtra)
+
+theme_set(theme_minimal())
+knitr::opts_chunk$set(dpi = 300)
+```
+
+```{r load data, include=FALSE}
+candidates    <- fec16::candidates
+results_house <- fec16::results_house
+campaigns     <- fec16::campaigns
+```
+
+
+\newpage
+
+
+
+## 1. What does the distribution of votes and of spending look like? 
+
+1. (3 points) In separate histograms, show both the distribution of votes (measured in \
+`results_house$general_percent` for now) and spending (measured in `ttl_disb`).  Use a log transform if appropriate for each visualization.  How would you describe what you see in these two plots?
+
+**ANSWER:**  
+
+  From my observation, the data `general_percent` and `ttl_disb` have the following problems:  
+
+  - The original data of the 2 variables are not on the same scale (Fig. A-B) .
+  - Has skewness problems because the curve appears distorted and skewed to the left in a statistical distribution. 
+  - The data are not centered. 
+
+  At this stage, based on my finding, we need to perform data transforming including scaling, centering and skewness corrections. 
+
+  I will perform Log transformation first, because log transform makes the data as “normal” as possible so that the statistical analysis results from this data become more valid,  the log transformation reduces or removes the skewness of our original data. In detail I choose natural logarithm here for the purposes of linear modeling , i.e.,  using Log transformation replaces each variable x with a log(x). The results are shown in Fig. C-D, repectivelay. In C and D, after the transfermation, the vurves approcimately follows normal distribution, the graph appears symmetry,  there are about as many data values on the left side of the median as on the right side. 
+
+  I will do other data transformations later in the following questions.  Data transformation can make our model working efficiently: distance based models perform well when data is pre-processed and transformed; having all features scaled it speeds up the model; better accuracy and more generalized model. 
+
+\
+
+
+```{r include=FALSE}
+write.csv(candidates, "c.csv")
+write.csv(results_house, "r.csv")
+write.csv(campaigns, "ca.csv")
+
+summary(candidates)
+summary(results_house)
+summary(campaigns)
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+p1<-ggplot(results_house, aes(x= general_votes)) +
+ geom_histogram(aes(y=..density..), colour="black", fill="white")+
+ geom_density(alpha=.2, fill="#FF6666")
+ 
+p2<-ggplot(campaigns, aes(x= ttl_disb)) +
+ geom_histogram(aes(y=..density..), colour="black", fill="white")+
+ geom_density(alpha=.2, fill="#FF6666")
+
+p3<-ggplot(results_house,aes(x= general_votes)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 10^x), trans = scales::log_trans())+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(general_votes)")
+
+p4<-ggplot(campaigns, aes(x= ttl_disb)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 10^x), trans = scales::log_trans())+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(ttl_disb)")
+
+
+ggarrange(p1, p2, p3, p4, labels = c("A", "B", "C", "D"), ncol = 2, nrow = 2)
+
+```
+
+
+
+\newpage
+
+## 2. Exploring the relationship between spending and votes. 
+
+2. (3 points) Create a new dataframe by joining `results_house` and `campaigns` using the `inner_join` function from `dplyr`. (We use the format `package::function` -- so `dplyr::inner_join`.) 
+
+**ANSWER:**
+
+  Done the creation of new dataframe by joining `results_house` and `campaigns` using the `inner_join` function from `dplyr`. The new data frame is named "d1". A discription of "d1" is as the follows: 
+
+
+```{r}
+ 
+d1 <- dplyr::inner_join(results_house, campaigns, by = NULL)
+nrow(d1)
+summary(d1)
+
+```
+
+
+
+\newpage
+
+
+3. (3 points) Produce a scatter plot of `general_votes` on the y-axis and `ttl_disb` on the x-axis. What do you observe about the shape of the joint distribution? 
+
+
+**ANSWER:** 
+
+  The scatter plot of `general_votes` on the y-axis and `ttl_disb` on the x-axis is shown below Fig.E. I also made  a scatter plot  using y = log(general_votes) and x=  log(ttl_disb), as shown in Fig.F. 
+
+  In general, a x-y scatter graph displays and compares values to show the numerical distribution of variables in a rectangular coordinate system. A two-dimensional scatter chart can show the data analysis of two variables to provide the relationship and correlation between the two. Scatter plots can provide three types of
+key information: 
+
+  - Whether there is a quantitative correlation trend between variables; 
+  - If there is a correlation trend, is it linear or non-linear; 
+  - Observe whether there are outliers and analyze The influence of these outliers on the modeling analysis.
+
+  However, I couldn't find obvious correlation between variables since most of them look randomly distributed on the scatter plot. If there is a certain correlation, then most of the data points will be relatively dense and present in a certain trend, however I cannot figure it out it by simple observation. 
+
+  By observing the distribution of data points on the scatter plot, I found there are some outliers.
+ 
+\ 
+ 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+p5 <- ggplot(d1, aes(y=general_votes, x=ttl_disb)) +
+  geom_point(size=2, shape=23)+
+  geom_smooth(method=lm)
+
+p6 <- ggplot(d1, aes(x=log(ttl_disb), y=log(general_votes))) +
+  geom_point(size=2, shape=23)+
+  geom_smooth(method=lm)
+
+ggarrange(p5, p6, labels = c("E", "F"), ncol = 2, nrow = 2)
+
+```
+
+\newpage
+
+
+4. (3 points) Create a new variable to indicate whether each individual is a "Democrat", "Republican" or "Other Party". 
+  - Here's an example of how you might use `mutate` and `case_when` together to create a variable. 
+
+```
+starwars %>%
+  select(name:mass, gender, species) %>%
+  mutate(
+  type = case_when(
+    height > 200 | mass > 200 ~ "large",
+    species == "Droid"        ~ "robot",
+    TRUE                      ~ "other"
+    )
+  )
+```
+
+Once you've produced the new variable, plot your scatter plot again, but this time adding an argument into the `aes()` function that colors the points by party membership.  What do you observe about the distribution of all three variables?
+
+
+
+**ANSWER:**
+
+
+  The new variable has been produced, the new data frame is named "d2", a discription is as the follows : 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+d2<-d1 %>%
+  dplyr::select(party, general_votes, ttl_disb) %>%
+  na.omit() %>%
+    mutate(
+    can_party = case_when(
+      party=="REP" ~ "REP",
+      party=="DEM" ~ "DEM",
+      TRUE ~ "Other"
+    )
+  )
+
+d2<-d2 %>% dplyr::select(can_party, general_votes, ttl_disb)
+
+summary(d2)
+
+ 
+```
+
+
+ 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+p0 <- ggplot(d2, aes(y = general_votes, x=ttl_disb, color=can_party)) +
+  geom_smooth(method=lm)+
+  geom_point(size=2, shape=23)
+
+
+p1<-ggplot(d2, aes(x=general_votes, y=ttl_disb, color=can_party)) + 
+  geom_point() + 
+  scale_color_manual(values = c("red", "blue", "green")) + 
+  theme(legend.position=c(1,1), legend.justification=c(1,1))
+
+
+p2<-ggplot(d2, aes(x=general_votes, fill=can_party)) + 
+  geom_density(alpha=.5) + 
+  scale_fill_manual(values =  c("red", "blue", "green")) + 
+  theme(legend.position=c(1,1), legend.justification=c(1,1))
+
+# Marginal density plot of y (right panel)
+p3<-ggplot(d2, aes(x=ttl_disb, fill=can_party)) + 
+  geom_density(alpha=.5) + 
+  scale_fill_manual(values =  c("red", "blue", "green")) + 
+  theme(legend.position = "none")
+
+p4<-ggplot(d2, aes(x=can_party, fill=can_party)) + 
+  geom_density(alpha=.5) + 
+  scale_fill_manual(values =  c("red", "blue", "green")) + 
+  theme(legend.position = "none")
+
+
+ggarrange(p1, p2, p3, p4, labels = c("G", "H", "I", "J" ), ncol = 2, nrow =2)
+
+```
+
+
+  From my observation in Fig H-J, the variable general_percent,ttl_disb and can_party have the following properties:
+  
+  - The distribution of each of the three variables (i.e. can_party, ttl_disp, general_vote)  are a combination of 3 different curves that are approximately following  normal  distributions. 
+  - For each variable, the 3 curves in different color clustered by the 3  (i.e. DEM , REP, and Other)  parties.
+  - Among the total 9 curves, each of the curves appears symmetry, there are about as many data values on the left side of the median as on the right side.
+  - Each of the curves has skewness problems because the curve appears distorted or skewed to the left or right in a statistical distribution.
+  - The data in each curve are not centered.
+
+  At this stage, based on my finding, the following decisions are made: 
+  
+  - A linear model can be created and fit the relationship between the general_votes and ttl_disb and can_party. 
+  - Detailed analysis and pre-processing need to be done to the data using maths.
+  - further data transformations have to be performed.
+  
+  Next, I will do the data pre-processing and model creation.
+  
+   
+
+\newpage
+
+# Produce a Descriptive Model 
+
+5. (5 Points) Given your observations, produce a linear model that you think does a good job at describing the relationship between candidate spending and votes they receive. You should decide what transformation to apply to spending (if any), what transformation to apply to votes (if any) and also how to include the party affiliation.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+d5<-d2 %>%
+  dplyr::select(can_party, general_votes, ttl_disb) %>%
+  na.omit() %>%
+    mutate(
+    can_party = case_when(
+      can_party=="REP" ~ 0,
+      can_party=="DEM" ~ 1,
+      TRUE ~ 2
+    )
+  )
+
+d2<-d5 %>% dplyr::select(can_party, general_votes, ttl_disb)
+
+```
+
+ 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+d2[d2 == -Inf] <- 0
+
+sdat <- d2[, c("general_votes", "ttl_disb", "can_party")]
+
+imp <- preProcess(sdat, method = c("bagImpute"), k = 5)
+sdat <- predict(imp, sdat)
+transformed <- spatialSign(sdat)
+transformed <- as.data.frame(transformed)
+par(mfrow = c(1, 2), oma = c(2, 2, 2, 2))
+plot(general_votes ~ ttl_disb, data = sdat, col = "blue", main = "Before")
+plot(general_votes ~ ttl_disb, data = transformed, col = "blue", main = "After")
+
+d2$novotes<-transformed$"general_votes"
+d2$nodisb<-transformed$"ttl_disb"
+d2$noparty<-transformed$"can_party"
+
+#d2<-transformed
+
+```
+
+ 
+
+ 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ 
+trans <- preProcess(d2, method = c("center", "scale"))
+# use predict() function to get the final result
+d3 <- predict(trans, d2)
+d2$csvotes = d3$general_votes
+d2$csdisb = d3$ttl_disb
+d2$csparty = d3$can_party
+ 
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ 
+d2$logdisb <- log(d2$ttl_disb)
+d2$logvotes <- log(d2$general_votes)
+d2$logparty <- log(d2$can_party)
+d2 <- na.omit(d2) 
+d2[d2 == -Inf] <- 0
+ 
+fit0 <- lm(d2$general_votes ~ d2$ttl_disb  + d2$can_party)
+summary(fit0)
+
+fit1 <- lm(d2$csvotes ~ d2$csdisb  + d2$csparty)
+summary(fit1)
+
+fit2 <- lm(d2$novotes ~ d2$nodisb  + d2$noparty)
+summary(fit2)
+ 
+fit3 <- lm(d2$logvotes ~ d2$logdisb  + d2$logparty)
+summary(fit3)
+ 
+fit4 <- lm(d2$general_votes ~ d2$logdisb + d2$can_party)
+summary(fit4)
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ 
+library(MASS)
+
+b <- boxcox(logvotes ~ logdisb + logparty, data = d2)
+lambda <- b$x
+lik <-b$y
+bc<-cbind(lambda, lik) 
+bc[order(~lik),]
+
+lambda<- 2.4
+d2$lamvotes <- (d2$logvotes^lambda-1)/lambda
+
+m1<-lm(lamvotes ~ logdisb + logparty, data = d2)  
+summary(m1)
+
+
+
+b2 <- boxcox(novotes ~ nodisb + noparty, data = d2)
+lambda <- b2$x
+lik <-b2$y
+bc<-cbind(lambda, lik) 
+bc[order(~lik),]
+
+lambda<- 1
+d2$lam2votes <- (d2$novotes^lambda-1)/lambda
+
+m2<-lm(lam2votes ~ nodisb + noparty, data = d2)  
+summary(m2)
+
+
+```
+
+
+```{r}
+attach(d2)
+
+c1 <- lm(lam2votes ~  nodisb + noparty)
+summary(c1)
+
+e <- resid(c1)
+c2 <- lm(e^2 ~ nodisb + noparty + I(nodisb^2) + I(noparty^2) + I(nodisb*noparty))
+(R2 <- summary(c2)$r.sq)
+(n <- nrow(c2$model))
+(m <- ncol(c2$model))
+(W <- n*R2)
+(P <- 1 - pchisq(W, m - 1))
+
+c3 <- lm(lam2votes ~  nodisb + noparty, weights = 1/abs(e))
+summary(c3)
+
+```
+
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ 
+attach(d2)
+
+c1 <- lm(lamvotes ~  logdisb + logparty)
+summary(c1)
+
+e <- resid(c1)
+c2 <- lm(e^2 ~ logdisb + logparty + I(logdisb^2) + I(logparty^2) + I(logdisb*logparty))
+(R2 <- summary(c2)$r.sq)
+(n <- nrow(c2$model))
+(m <- ncol(c2$model))
+(W <- n*R2)
+(P <- 1 - pchisq(W, m - 1))
+
+c3 <- lm(lamvotes ~  logdisb + logparty, weights = 1/abs(e))
+summary(c3)
+
+```
+
+
+
+
+\newpage
+
+
+
+
+
+6. (3 points) Interpret the model coefficients you estimate.
+
+- Tasks to keep in mind as you're writing about your model: 
+    - At the time that you're writing and interpreting your regression coefficients you'll be *deep* in the analysis. Nobody will know more about the data than you do, at that point. *So, although it will feel tedious, be descriptive and thorough in describing your observations.* 
+    - It can be hard to strike the balance between: on the one hand,  writing enough of the technical underpinnings to know that your model meets the assumptions that it must; and, on the other hand, writing little enough about the model assumptions that the implications of the model can still be clear. We're starting this practice now, so that by the end of Lab 2 you will have had several chances to strike this balance.
+    
+    
+    
+**ANSWER**
+
+ Interpreting a Coefficient as a Rate of Change in Y Instead of as a Rate of Change in the Conditional Mean of Y.
+
+As pointed out in the discussion of overfitting, the computed regression equation estimates the true conditional mean function. How well it estimates the behavior of actual values of the random variable depends on the variability of the response variable Y. Thus, interpreting the computed coefficients in terms of the response variable is often misleading.
+
+Illustration: In the graph shown below, the data are marked in green, the true line of conditional means is in violet, and the  fitted (computed) regression line is in blue. Note that the fitted regression line is close to the true line of conditional means. The equation of the fitted regression line is (with coefficients rounded to a reasonable degree) ŷ = 0.56 + 2.18x.1 Thus it is accurate to say, "For each change of one unit in x, the average change in the mean of Y is about 2.18 units." It is not accurate to say, "For each change of one unit in x, Y changes about 2.18 units." For example, we can see from the graph that when x is 2, Y might be anywhere between a little below 4 to a little above 5.5; when x is 3, Y might be anywhere from a little more than 5.5 to a little more than 9. So when going from x = 2 to x = 3, the change in Y might be almost zero, or it might be as large as 5.5 units. 
+
+
+Interpreting a coefficient as a rate of change in Y instead of as a rate of change in the conditional mean of Y.
+
+2. Not taking confidence intervals for coefficients into account.
+
+Even when a regression coefficient is (correctly) interpreted as a rate of change of a conditional mean (rather than a rate of change of the response variable), it is important to take into account the uncertainty in the estimation of the regression coefficient. To illustrate, in the example used in item 1 above, the computed regression line has equation ŷ = 0.56 + 2.18x.  However, a 95% confidence interval for the slope is (1.80, 2.56). So saying, "The rate of change of the conditional mean of Y with respect to x is estimated to be between 1.80 and 2.56" is usually1 preferable to saying, "The rate of change of the conditional mean Y with respect to x is about 2.18."
+ 
+
+3. Interpreting a coefficient that is not statistically significant.2
+
+Interpretations of results that are not statistically significant are made surprisingly often. If the t-test for a regression coefficient is not statistically significant, it is not appropriate to interpret the coefficient. A better alternative might be to say, "No statistically significant linear dependence of the mean of Y on x was detected.
+
+4. Interpreting coefficients in multiple regression with the same language used for a slope in simple linear regression.
+
+Even when there is an exact linear dependence of one variable on two others, the interpretation of coefficients is not as simple as for a slope with one dependent variable.
+
+Example: If y = 1 + 2x1 + 3x2, it is not accurate to say "For each change of 1 unit in x1, y changes 2 units". What is correct is to say, "If x2 is fixed, then for each change of 1 unit in x1, y changes 2 units."
+
+Similarly, if the computed regression line is ŷ = 1 + 2x1 + 3x2, with confidence interval (1.5, 2.5), then a correct interpretation would be, "The estimated rate of change of the conditional mean of Y with respect to x1, when x2 is fixed,  is between 1.5 and 2.5 units."
+
+For more on interpreting coefficients in multiple regression, see Section 4.3 (pp 161-175) of Ryan3.
+
+5. Multiple inference on coefficients.
+

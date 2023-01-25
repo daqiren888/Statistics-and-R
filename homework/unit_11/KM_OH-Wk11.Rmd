@@ -1,0 +1,275 @@
+---
+title: "Office Hours Week 11"
+author: "Kevin Martin"
+date: "11/8/2020"
+# outputs BOTH .html AND .pdf
+output: 
+    html_document: default
+    pdf_document: default
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(
+    inputFile, encoding = encoding,
+    output_format = c('html_document', 'pdf_document')) 
+    })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(stargazer)   # fancy model tables
+library(sandwich)    # White standard errors
+```
+
+## Agenda
+
+* Stargazer
+* Omitted Variable Bias
+* Some EDA charts that I like
+
+## Stargazer
+
+This cheat sheet from Jake Russ is amazing y'all https://www.jakeruss.com/cheatsheets/stargazer/
+
+*Bonus Fact stargazer is a tounge in cheek aknowledgement that most of the time you're "looing for stars (significance)" at the end of your statistical modeling work*
+
+### Get some data to work with
+
+We'll use the `mtcars` dataset that comes bundled with R. You can see more info about what the variables mean and where the data set comes from by typing `?mtcars` into the console. You can also equivalently type `mtcars` into the search box of the help window. 
+
+**Side note** there are a lot of interesting data sets that just come bundled in R. If you type the `data()` command, you can see a list of all of the data sets that are available and a brief summary of all of them.
+
+```{r intro to mtcars}
+## `mtcars` is a built in dataset in R. Gets used in all kinds of examples
+
+# bonus info
+# ?mtcars
+# View(mtcars)
+# data()
+  # highlight then `Ctrl` + `Shift` + `C` to block comment and uncomment
+
+summary(mtcars)
+```
+
+### Build some models
+
+```{r predict mpg}
+
+# just look at mpg as predicted by horsepower, add weight and 1/4 mile time as covariates
+mod1 <- lm(mpg ~ hp , data=mtcars)
+mod2 <- lm(mpg ~ hp + wt , data=mtcars)
+mod3 <- lm(mpg ~ hp + wt + qsec , data=mtcars)
+```
+
+What do we expect:
+corr(mpg, hp):    negative
+corr(mpg, wt):    negative
+corr(mpg, qsec):  positive
+
+### Gaze Some Stars
+
+Formatting stargazer layout for a variety of formats
+
+#### Text layout
+
+```{r basic stargazer, warning=FALSE}
+stargazer(mod1, mod2, mod3,
+          type="text",
+          se = list( sqrt(diag(vcovHC(mod1))), sqrt(diag(vcovHC(mod2))), sqrt(diag(vcovHC(mod3)))) ,
+          column.labels = c("hp","wt+hp","overfit"))
+```
+
+**Important note on parsimony** when we added `qsec` in, the standard errors on hp AND wt both increased. This is what happens when you have multicolinearity. This is why we tend to like parsimonious models with few extra covariates.
+
+**Side note:** It's a little bit of a pain in the butt to pull out the coefficients from the Heteroskedastic Consistent vcov matrix you can see below for the standard errors.
+
+> The standard error is `r sprintf("%.3g", sqrt(diag(vcovHC(mod1)))[["hp"]])` and that is a nice standard
+
+#### Fancier output formats (latex and html)
+
+You **CAN** output to **latex** or **html**. Warning up top, they don't render in Rstudio. They DO render in the knitted output depending on the specific format you're looking at.
+
+**NOTICE** the **`results = 'asis'`** up top in the code block header. (all glory to this answer on stackoverflow https://stackoverflow.com/a/30423627/1992108)
+
+```{r latex output, warning=FALSE, results='asis'}
+## the results='asis' is important here
+## the latex will render in the knitted pdf.
+stargazer(mod1,mod2, mod3,
+          type="latex",
+          se = list( sqrt(diag(vcovHC(mod1))),sqrt(diag(vcovHC(mod2))) ,sqrt(diag(vcovHC(mod3)))) ,
+          column.labels = c("hp","wt+hp","overfit"))
+```
+
+```{r html output, warning=FALSE, results='asis'}
+## the html will render if knitted to markdown (or html of course) 
+  # this will look BAAAD in the PDF.
+stargazer(mod1,mod2, mod3,
+          type="html",
+          se = list( sqrt(diag(vcovHC(mod1))),sqrt(diag(vcovHC(mod2))) ,sqrt(diag(vcovHC(mod3)))) ,
+          column.labels = c("hp","wt+hp","overfit"))
+```
+
+## Direction of Omitted Variable Bias
+
+We can't tell the exact size of the omitted variable bias, but we can tell the direction if we know the **direction of the relationship between the omitted variable and the included input variable (I have labeled it $\alpha_1$)** as well as the **direction of the relationship between the omitted variable and the output variable (I have labeled it $\alpha_2$)**
+
+This website has a farily nice table ([link](https://statisticsbyjim.com/regression/confounding-variables-bias/)). See the header "Predicting the Direction of Omitted Variable Bias" 
+
+* $\alpha_1 = sign(cor(x_{omit},x_{iclude}))$
+* $\alpha_2 = sign(cor(x_{omit},y))$
+  * This is **technically incorrect** and will not hold true all the time. 
+  * You should use $sign(\beta_2)$ here where $\beta_2$ is the coefficient associated with your omitted variable if it were included.
+  * Often times, $\alpha_2 = sign(\beta_2)$ but not all the time. There are a few examples at the end of the document where the assumption that  $\alpha_2 = sign(\beta_2)$ doesn't hold
+* $\alpha_{dir} = \alpha_1*\alpha_2$
+  * As noted above, this should technically be $\alpha_{dir} = \alpha_1*sign(\beta_2)$ 
+
+We get the direction of the bias by multiplying $\alpha_1$ by $\alpha_2$. 
+
+* **If $\alpha_{dir}$ is positive**
+  * The **coefficient** associated with the included variable in the shortened equation is **larger** than it would be if the omitted variable were included.
+    * *Larger means more positive in this case. It does NOT mean greater magnitude*
+  * Adding in the omitted variable will push the coefficient on the included variable in the negative direction.
+* **If $\alpha_{dir}$ is negative**
+  * The **coefficient** associated with the included variable in the shortened equation is **smaller** than it would be if the omitted variable were included.
+    * *Smaller means more negative in this case. It does NOT mean lesser magnitude*
+  * Adding in the omitted variable will push the coefficient on the included variable in the positive direction.
+
+### More concrete models to view omitted variable biase
+
+We're going to use the `mtcars` data that we introduced in the stargazer discussion to build some models and view the effects of omittiing (then including) variables.
+
+We see a correlation plot of the variables in the `mtcars` data below. Blue circles indicate positive correlation, red circles indicate negative correlation. 
+
+```{r}
+## corrplot takes a correlation matrix as an arument
+  # needs the corrplot package
+corrplot::corrplot(cor(mtcars),method = "color",order="AOE", 
+                   diag=FALSE, addCoef.col = "white", addCoefasPercent = TRUE)
+```
+
+#### Estimator Negatively Biased Away from Zero
+
+In the case below, we have an estimator that is biased in the negative direction. Since the coefficient that it is associated with is negative as well we would say it is biased away from zero. We break down the components of the omitted variable bias below. 
+
+* $\alpha_1$:   `wt` **positively** correlated with `hp`
+* $\alpha_2$:   `wt` **negatively** correlated with `mpg`
+* $\alpha_{dir}(estimate)$: **negative** overall
+
+We see that including the ommited variable reduces the negative bias of the coefficient on `hp`. It becomes less negative and moves towards zero.
+
+```{r warning=FALSE}
+sprintf("a1 is %d", (a1    <- sign(cor(mtcars$wt,mtcars$hp))))
+sprintf("a2 is %d", (a2    <- sign(cor(mtcars$wt,mtcars$mpg))))
+sprintf("adir(estimate) is %d",(adir <- a1*a2))
+stargazer(mod1, mod2, type = "text")
+```
+
+#### Estimator Positively Biased Away from Zero
+
+In the case below, we have an estimator that is biased in the positive direction. Since the coefficient that it is associated with is positive as well we would say it is biased away from zero. We break down the components of the omitted variable bias below. 
+
+* $\alpha_1$:   `disp` **positively** correlated with `invq`
+* $\alpha_2$:   `disp` **positively** correlated with `hp`
+* $\alpha_{dir}(estimate)$: **positive** overall
+
+We see that including the ommited variable reduces the positive bias of the coefficient on `invq`. It becomes less positive and moves towards zero.
+
+```{r warning=FALSE}
+## this variable is created out of the ether to get all positively correlated variables.
+invq = 1/mtcars$qsec
+
+sprintf("a1 is %d", (a1    <- sign(cor(mtcars$disp,invq))))
+sprintf("a2 is %d", (a2    <- sign(cor(mtcars$disp,mtcars$hp))))
+sprintf("adir(estimate) is %d",(adir <- a1*a2))
+
+mod1 <- lm(data=mtcars, hp ~ invq)
+mod2 <- lm(data=mtcars, hp ~ invq + disp)
+stargazer(mod1, mod2, type = "text")
+```
+
+#### Estimator Positively Biased Towards Zero (SOME ASSUMPTIONS BREAK)
+
+In the case below, we have an estimator that is biased in the Positive direction. Since the coefficient that it is associated with is negative we would say it is biased towards zero. We break down the components of the omitted variable bias below. 
+
+We see that including the ommited variable reduces the positive bias of the coefficient on `cyl`. It becomes more negative and moves away from zero.
+
+##### Directional Estimator Breakdown
+
+Our estimated bias direction based on correlations is:
+
+* $\alpha_1$:   `vs` **negatively** correlated with `cyl`
+* $\alpha_2$:   `vs` **positively** correlated with `mpg`
+* $\alpha_{dir}(estimate)$: **negative** overall
+
+Our correct bias direction which is based on $\beta_2$ is:
+
+* $\alpha_1$:   `vs` **negatively** correlated with `cyl`
+* $\beta_2$: is a **negative** coefficient in the full regression
+* $\alpha_{dir}(correct)$: **positive** overall
+
+##### What's the Lesson?
+
+Obviously, this breakdown of our directional bias estimator is distressing. You would like to think that you can at least predict the direction of your bias on omitted variables. Obviously in the real world you probably can't actually see if $sign(\beta_2)$ is different than $\alpha_2$ because that would require finding $\beta_2$, which would require running the regression including the omitted variable. If you could do that, then you wouldn't need this whole exercise on estimating the bias associated with omitting the variable in the first place.
+
+This should just drive home the fact that causality is hard. Even basic things like predicting direction on omitted variable bias are frought with counter-intuitive examples. You really need an experiment to determine causality. If that interests you, might I suggest the w241 course.
+
+```{r warning=FALSE}
+
+sprintf("a1 is %d", (a1    <- sign(cor(mtcars$vs,mtcars$cyl))))
+sprintf("a2 is %d", (a2    <- sign(cor(mtcars$vs,mtcars$mpg))))
+sprintf("adir(estimate) is %d",(adir <- a1*a2))
+
+mod1 <- lm(data=mtcars, mpg ~ cyl)
+mod2 <- lm(data=mtcars, mpg ~ cyl + vs)
+mod3 <- lm(data=mtcars, mpg ~ vs)
+stargazer(mod1, mod2, mod3, type = "text")
+```
+
+## EDA charts that I like
+
+### Corrplot
+
+I like `corrplot()` I used it above. Very quick and easy way to check correlations. I'm not sure if the default color template has accessibility issues for the color blind. It looks like it might, but you should be able to add numbers or use `method="ellipse"` to account for that.
+
+### Scatter Plot Matrix.
+
+I really like `scatterplotMatrix()` you can think of it as a more advanced/dense version of the corrplot. The price you pay for the increased information density is that your plots end up being busier and harder to interpret at a glance than the comparable `corrplot()`. I personally wouldn't do it with more than about 4 variables. 
+
+```{r}
+## Plot a scatterplot matrix
+  # requires the car package 
+car::scatterplotMatrix(mtcars[,c("mpg","hp","wt","qsec")])
+```
+
+### Plot a model
+
+There are some really good diagnostic charts that come up if you just put your model inside a plot command. We will cover the interpretation of these charts later in the cours. You can use `par` to make a grid of charts for your diagnostics to map onto. That can make your reports cleaner.
+
+```{r}
+par(mfrow = c(2,2), oma = c(0,0,0,0)) #oma = outside margins plot(basemodel)
+plot(mod2)
+```
+
+
+<!--
+###### ANOTHER EXAMPLE OF OUR ESTIMATED BIAS DIRECTION GONE WRONG ######
+
+####  Estimator Positively Biased Towards Zero
+
+In the case below, we have an estimator that is biased in the Positive direction. Since the coefficient that it is associated with is negative we would say it is biased towards zero. We break down the components of the omitted variable bias below. 
+
+* $\alpha_1$:   `vs` **positively** correlated with `cyl`
+* $\alpha_2$:   `vs` **positively** correlated with `mpg`
+* $\alpha_{dir}$: **positive** overall
+
+We see that including the ommited variable reduces the positive bias of the coefficient on `invq`. It becomes more negative and moves away from zero.
+
+```{r warning=FALSE}
+
+sprintf("a1 is %f", (a1    <- (cor(mtcars$qsec,mtcars$mpg))))
+sprintf("a2 is %f", (a2    <- (cor(mtcars$qsec,mtcars$drat))))
+sprintf("adir is %f",(adir <- a1*a2))
+
+mod1 <- lm(data=mtcars, qsec ~ mpg)
+mod2 <- lm(data=mtcars, qsec ~ mpg + drat)
+stargazer(mod1, mod2, type = "text")
+```
+-->

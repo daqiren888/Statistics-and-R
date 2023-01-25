@@ -1,0 +1,65 @@
+---
+title: "Unit 2 Homework: Characterizing Random Variables"
+author: 'w203: Statistics for Data Science'
+output: pdf_document
+---
+
+\newcommand{\R}{\mathbb{R}}
+
+## 1. Processing Pasta 
+
+A certain manufacturing process creates pieces of pasta that vary by length.  Suppose that the length of a particular piece, $L$, is a continuous random variable with the following probability density function.
+
+$$
+f(l) = 
+  \begin{cases} 
+    0, &l \leq 0 \\
+    c \cdot l, &0 < l \leq 2 \\
+    0, &2 < l
+  \end{cases}
+$$
+Where $c$ is a constant.
+
+a. Compute the constant $c$.
+b. Write down a complete expression for the cumulative probability function of $L$. 
+c. Compute the median value of $L$.  That is, compute $l$ such that $P(L \leq l ) = 1/2$. 
+
+\
+Answer a:
+
+$f(l) = \int_0^2cf(l)\,dl$
+
+
+
+\newpage
+
+## 2. Broken Rulers
+
+You have a ruler of length 2 and you choose a place to break it using a uniform probability distribution.  Let random variable $X$ represent the length of the left piece of the ruler.  $X$ is distributed uniformly in $[0,2]$.  You take the left piece of the ruler and once again choose a place to break it using a uniform probability distribution.  Let random variable $Y$ be the length of the left piece from the second break.
+
+a. Draw a picture of the region in the X-Y plane for which the joint density of $X$ and $Y$ is non-zero.
+
+b. Compute the joint density function for $X$ and $Y$. (As always, make sure you write a complete expression.)
+
+c. Compute the marginal probability density for $Y$, $f_Y(y)$.
+
+d. Compute the conditional probability density of $X$, conditional on $Y=y$, $f_{X|Y}(x|y)$.  (Make sure you state the values of $y$ for which this exists.)
+
+\newpage
+
+## 3. Post-Processing and Independence
+
+Suppose $X$ and $Y$ are discrete random variables, and $f: \R \to \R$ and $g:\R \to \R$ are functions.  Prove that if $X$ and $Y$ are independent then $f(X)$ and $g(Y)$ are independent.
+\newpage
+
+## Challenge Exercise: Characterizing a Function of a Random Variable
+
+Let $X$ be a continuous random variable with probability density function $f(x)$, and let $h$ be an invertible function where $h^{-1}$ is differentiable.  Recall that $Y = h(X)$ is itself a continuous random variable.  
+
+(Bonus + 3 points) Prove that the probability density function of $Y$ is
+
+$$
+g(y) = f(h^{-1}(y)) \cdot \left| \frac{d}{dy} h^{-1}(y) \right|
+$$
+
+*Note: The Homework Maximum is 100%*
