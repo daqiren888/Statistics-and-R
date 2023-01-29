@@ -1,7 +1,5 @@
-# Live Session and Homework 
+# Some of my works on Statistics and R programming
 
-This is the primary repository for instructors to distribute live session and homework materials to students.
+The main contents are the homeworks that I have done in US Berkeley W203 course which introducting many different types of quantitative research methods and statistical techniques for analyzing data. The works begin with a focus on measurement, inferential statistics and causal inference using the open-source statistics language, R. Topics in quantitative techniques include: descriptive and inferential statistics, sampling, experimental design, tests of difference, ordinary least squares regression, general linear models.
 
-- You will be turning in homework, and receiving feedback through [Gradescope](http://gradescope.com/). 
-- So that we can time the relase with each section, we will be providing you access to live session and homework solutions in a separate repository
-
+In addition to the W203 works, I have collected other live session and materials. 
