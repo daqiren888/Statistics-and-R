@@ -1,0 +1,39 @@
+
+```{r}
+library(ggplot2)
+e3<-read.csv('e3.csv', header=TRUE)
+
+mn=e3$highpoint_metres
+mn00<-mean(mn)
+print(mn00)
+
+ggplot(e3, aes(x = highpoint_metres, y = members))+
+  geom_point()+
+  stat_density2d()
+
+
+```
+
+
+
+```{r}
+
+t <- (mean(e$highpoint_metres)-7400)/(sd(e$highpoint_metres)/sqrt(length(e$highpoint_metres)))
+
+t
+
+2*pt(-abs(t),df=length(e$highpoint_metres)-1)
+
+
+t.test(e$highpoint_metres, mu=7400, alternative = "two.sided") 
+```
+
+
+```{r}
+library(ggplot2)
+e4<-read.csv('e3.csv', header=TRUE)
+
+ggplot(e4, aes(x = highpoint_metres, y = member_deaths))+
+  geom_point()+
+  stat_density2d()
+```

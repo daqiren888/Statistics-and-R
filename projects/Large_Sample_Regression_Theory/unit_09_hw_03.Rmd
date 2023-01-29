@@ -1,0 +1,221 @@
+---
+title: "Unit 9 Homework: Large-Sample Regression Theory"
+author: "w203: Statistics for Data Science"
+output: pdf_document
+---
+
+\newcommand{\E}{\text{E}}
+\newcommand{\V}{\text{V}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Cov}{\mathbb{\text{Cov}}}
+
+
+
+
+```{r load packages and set options, include=FALSE}
+library(tidyverse) 
+library(magrittr)
+library(knitr)
+library(patchwork)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+library(haven)
+library(nhstplot)
+library(gplots)
+library(kableExtra)
+library(readxl)
+library(lmtest)
+
+
+theme_set(theme_bw())
+options(tinytex.verbose = TRUE)
+```
+
+
+ 
+## What Makes a Successful Video Game?
+
+The file `video_games.csv` contains data on 1212 video games that were on sold in 2011.  It was compiled by Joe Cox, an economist at the University of Portsmouth.
+
+Three key variables are as follows:
+
+Variable|   Meaning
+--------|-------------------
+Metrics.Sales | The total sales, measured in millions of dollars.
+Metrics.Review.Score | Metacritic review score, an indicator of quality, out of 100.
+Length.Completionists.Average	|	The mean time that players reported completing everything in the game, in hours.
+
+You can find an explanation of other variables at https://think.cs.vt.edu/corgis/csv/video_games/.
+
+You want to fit a regression predicting `Metrics.Sales`, with `Metrics.Review.Score` \
+and `Length.Completionists.Average` as predictors.
+
+0. Rename the variables that you are going to use to something sensible -- variable names that have both periods and capital letters are not sensible. :fire: Better would be, for example changing `Metrics.Sales` to just `sales`. 
+
+
+```{r include=FALSE}
+
+#setwd("~/Desktop/r-novice-inflammation/")
+
+dat<-read.csv('video_games.csv')
+
+#dat <- select(dat, 'Metrics.Sales', 'Metrics.Review.Score', 'Length.Completionists.Average')
+#rename(developer = assignee.login) %>%
+  
+  
+df<-dat %>% 
+  select('Metrics.Sales', 'Metrics.Review.Score', 'Length.Completionists.Average')%>% 
+  rename(sales = Metrics.Sales, score = Metrics.Review.Score, length = Length.Completionists.Average )
+
+```
+
+
+
+1. Examining the data, and using your background knowledge, evaluate the assumptions of the large-sample linear model.
+
+
+```{r}
+
+summary(df)
+
+
+fit <- lm(df$sales ~ df$score)
+par(mfrow=c(2,2))
+plot (fit)
+ 
+
+fit <- lm(df$length ~ df$score)
+par(mfrow=c(2,2))
+plot (fit)
+
+
+fit <- lm(df$sales ~ df$length)
+par(mfrow=c(2,2))
+plot (fit)
+
+```
+
+
+2. Whether you consider the large-sample linear model sufficiently valid or not, proceed to fit the linear model using `lm()`.
+
+
+
+
+```{r}
+
+library(gvlma)
+
+fit <- lm(df$sales ~ df$score + df$length)
+gvmodel <- gvlma(fit) 
+summary(gvmodel) 
+ 
+
+library(car)
+crPlots(fit)
+
+
+qqPlot(fit, labels = row.names(df), id.method = 'identify', simulate = TRUE, main = 'Q-Q Plot')
+
+ncvTest(fit)
+durbinWatsonTest(fit)
+vif(fit)
+
+```
+
+3. Examine the coefficient for Metrics.Review.Score and give an interpretation of what it means.
+
+```{r}
+
+scoresales.lm <- lm(score ~ sales, data=df) 
+scorelength.lm <- lm(score ~ length, data=df) 
+summary(scoresales.lm)$r.squared 
+summary(scorelength.lm)$r.squared 
+
+```
+
+
+The most common interpretation of the coefficient of determination is how well the regression model fits the observed data. For example, a coefficient of determination of 60% shows that 60% of the data fit the regression model. Generally, a higher coefficient indicates a better fit for the model.
+
+However, it is not always the case that a high r-squared is good for the regression model. The quality of the coefficient depends on several factors, including the units of measure of the variables, the nature of the variables employed in the model, and the applied data transformation. Thus, sometimes, a high coefficient can indicate issues with the regression model.
+
+No universal rule governs how to incorporate the coefficient of determination in the assessment of a model. The context in which the forecast or the experiment is based is extremely important, and in different scenarios, the insights from the statistical metric can vary.
+
+
+
+
+
+```{r}
+
+bptest(scoresales.lm)
+bptest(scorelength.lm)
+
+
+```
+ 
+
+4. Perform a hypothesis test to assess whether video game quality has a relationship with total sales. Please use `vcovHC` from the `sandwich` package with the default options ("HC3") to compute robust standard errors. To conduct the test, use `coeftest` from the `lmtest` package. 
+
+
+```{r}
+library(lmtest)
+m1 <- lm(df$score ~ df$sales + df$length)
+bptest(m1)
+#ptest(m1, studentsize=FALSE)
+
+
+m2 <- lm(df$sales ~ df$score + df$length)
+bptest(m2)
+#ptest(m1, studentsize=FALSE)
+
+
+m3 <- lm(df$length ~ df$sales + df$score)
+bptest(m3)
+#ptest(m1, studentsize=FALSE)
+
+
+
+```
+
+```{r}
+library(sandwich)
+#summary(m1)
+#NeweyWest(m1)
+
+#result1<-coeftest(m1, vcov = NeweyWest(m1))
+result2<-coeftest(m1, vcov. = vcovHC, type = "HC3")
+
+print(result2)
+summary(m1)
+
+```
+ 
+ 
+ 
+ 
+```{r}
+
+
+#m1 <- lm(df$score ~ df$sales)
+
+#rhs<-c(0,1)
+#vcovhc
+
+
+```
+ 
+ 
+  
+ 
+ 
+
+
+
+
+5. **Optional:** Open the attached paper by Joe Cox, and read section 3.  Which assumption did the author focus on, and why do you think that is?
+
+
+*Note: Maximum score on any homework is 100\%*

@@ -1,0 +1,169 @@
+---
+title: "Unit 6 Homework: Tests and and Confidence Intervals"
+author: "w203: Statistics for Data Science"
+output: pdf_document
+---
+
+\newcommand{\E}{\text{E}}
+\newcommand{\V}{\text{V}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Cov}{\mathbb{\text{Cov}}}
+
+
+## Low-Oxygen Statistics
+
+The file `expeditions.csv` contains data about 10,000 climbing expeditions in the Himalayan Mountains of Nepal.  The data was compiled by the Himalayan Database and published in csv format on Tidy Tuesday.
+
+First, navigate to https://github.com/rfordatascience/tidytuesday/tree/master/data/2020/2020-09-22 to read some basic information about the data and examine the codebook.
+
+The variable `highpoint_metres` represents the highest elevation reached by each expedition.  Your task is to test whether the mean highest elevation is above 7400 meters.
+
+a. Using the documentation about the data, your background knowledge, and the data itself, assess whether the assumptions underlying a valid t-test are met. If plots are useful to make this argument, include them; if numeric statements are useful to make this argument, use them.  
+
+A one sample test of means compares the mean of a sample to a pre-specified value and tests for a deviation from that value. 
+ 
+one samples independent t-test assume the following characteristics about the data:
+
+(1)Independence of the observations. Each subject should belong to only one group. There is no relationship between the observations in each group.
+(2) No significant outliers in the two groups
+(3) Normality. the data for each group should be approximately normally distributed.
+(4) Homogeneity of variances. the variance of the outcome variable should be equal in each group. 
+
+
+```{r}
+
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+
+# Load the data
+e_read<-read.csv('expeditions.csv', header=TRUE)
+f<-e_read%>%drop_na(highpoint_metres)
+#e$m<-e$highpoint_metres*e$members
+
+
+e<-expandRows(f,"members")
+metres<-e$highpoint_metres
+
+
+#e.expanded<-e[rep(row.names(e), e$members, 1:2)]
+
+
+#data("genderweight", package = "datarium")
+# Show a sample of the data by group
+#set.seed(123)
+#data()
+#head(e, 6)
+#metres %>% sample_n_by(group, size = 2)
+
+set.seed(1234)
+sample_n(e, 10)
+
+#ggplot(e, aes(x = highpoint_metres, y = members))+
+#ggplot(e, aes(x = metres))+
+#  geom_point()+
+#  stat_density2d()
+
+ggdensity(metres, 
+          main = "Density plot of highpoint_metres",
+          xlab = "metes")
+
+ggqqplot(metres)
+mean_value <-mean(metres)
+print(mean_value)
+
+ad.test(metres)
+
+
+```
+
+
+b. Provide an argument for why you should conduct a two-tailed test in this case, even though your personal interest is primarily in whether the mean is higher than 7400.
+
+I use a two-tailed test because I care whether the mean is greater than or less than the target value, i.e. 7400. Two-tailed tests can test for effects in both directions. When performing a two-tailed test, I split the significance level percentage between both tails of the distribution.
+I do not use one-tailed test because it is only justified if we have a specific prediction about the direction of the t-test,  Or if we completely uninterested in the possibility that the opposite outcome could be true.
+
+
+
+c. Compute the t-statistic by plugging in the values from the data manually into the formula. A _great_ solution would write a function (perhaps called `t_statistic`) that takes arguments and returns a value. However, writing a function isn't necessary for a full solution. Feel free to use functions `mean()`, `sd()`, and `sqrt()`.
+
+
+```{r}
+t_statistic <- function(highpoint_metres, mean_highest_elevation) {
+   t <- (mean(highpoint_metres)-mean_highest_elevation)/
+     (sd(highpoint_metres)/sqrt(length(highpoint_metres)))
+   cat("t = ", t)
+}
+
+d<- e$highpoint_metre
+h<-7400
+
+t<-t_statistic(d, h)
+ 
+```
+
+
+
+d. Using `qt()`, compute the t-critical value for a two-tailed test.
+
+```{r}
+#df is degree of freedom
+
+df<-length(metres)-1
+
+df
+
+#compute the t-critical value for a left-tailed test
+#t_critical_left_tailed<-qt(p=.05, df, lower.tail=TRUE)
+#cat("t_critical_left_tailed=", t_critical_left_tailed)
+#compute the t-critical value for a right-tailed test
+#t_critical_right_tailed<-qt(p=.05, df, lower.tail=FALSE)
+#cat("t_critical_right_tailed=", t_critical_right_tailed)
+
+#compute the t-critical value for a two-tailed test
+t_critical_two_tailed<-qt(p=.05/2, df, lower.tail=FALSE)
+cat("t_critical_two_tailed=", t_critical_two_tailed)
+
+
+```
+When perform a two-tailed test, there will be two critical values. In this case, the T critical values are 1.960202 and -1.960202. Thus, if the test statistic is less than -1.960202 or greater than 1.960202, the results of the test are statistically significant.
+
+
+
+
+e. Compute the p-value for your two-tailed test.  You may use the `pt()` function.
+
+```{r}
+t<-0.879043
+
+p_value<-2*pt(-abs(t),df=length(metres)-1)
+
+p_value
+
+```
+
+f. Explain what your rejection decision should be in two ways.
+
+
+When perform a two-tailed test, there will be two critical values. In this case, the T critical values are 1.960202 and -1.960202. Thus, if the test statistic is less than -1.960202 or greater than 1.960202, the results of the test are statistically significant.
+
+
+f. Confirm that your work is correct, by running the `t.test` command.
+
+
+```{r}
+#require(moonBook)
+require(webr)
+
+t.test(e$highpoint_metres, mu=7400, alternative = "two.sided") 
+
+plot(t.test(e$highpoint_metres,mu=7400))
+
+```
+
+g. Evaluate the practical significance of your result.
+

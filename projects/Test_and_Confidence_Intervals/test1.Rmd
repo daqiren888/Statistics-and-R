@@ -1,0 +1,18 @@
+
+```{r}
+library(ggplot2)
+e3<-read.csv('e3.csv', header=TRUE)
+
+ggplot(e3, aes(x = highpoint_metres, y = members))+
+  geom_point()+
+  stat_density2d()
+```
+
+```{r}
+library(ggplot2)
+e4<-read.csv('e3.csv', header=TRUE)
+
+ggplot(e4, aes(x = highpoint_metres, y = member_deaths))+
+  geom_point()+
+  stat_density2d()
+```

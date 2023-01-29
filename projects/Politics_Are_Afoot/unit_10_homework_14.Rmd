@@ -1,0 +1,472 @@
+---
+title: "Politics Are Afoot!"
+author: 'Da Qi Ren'
+#date: "10/21/2020"
+output: pdf_document
+---
+
+# The Setup 
+
+There is *a lot* of money that is spent in politics in Presidential election years. So far, estimates have the number at about $11,000,000,000 (11 billion USD). For context, in 2019 Twitter's annual revenue was about \$3,500,000,000 (3.5 billion USD). 
+
+# The work 
+
+Install the package, `fec16`. 
+
+```{r}
+## install.packages('fec16')
+```
+
+This package is a compendium  of spending and results from the 2016 election cycle. In this dataset are 9 different datasets that cover: 
+
+- `candidates`: candidate attributes, like their name, a unique id of the candidate, the election year under consideration, the office they're running for, etc. 
+- `results_house`: race attributes, like the name of the candidates running in the election, a unique id of the candidate, the number of `general_votes` garnered by each candidate, and other information. 
+- `campaigns`: financial information for each house & senate campaign. This includes a unique candidate id, the total receipts (how much came in the doors), and total disbursements (the total spent by the campaign), the total contributed by party central committees, and other information. 
+
+# Your task 
+
+Describe the relationship between spending on a candidate's behalf and the votes they receive.
+
+# Your work 
+
+- We want to keep this work *relatively* constrained, which is why we're providing you with data through the `fec16` package. It is possible to gather all the information from current FEC reports, but it would require you to make a series of API calls that would pull us away from the core modeling tasks that we want you to focus on instead. 
+- Throughout this assignment, limit yourself to functions that are  within the `tidyverse` family of packages: `dplyr`, `ggplot`, `patchwork`, and `magrittr` for wrangling and exploration and `base`, `stats`, `sandwich` and `lmtest` for modeling and testing. You do not *have* to use these packages; but try to limit yourself to using only these. 
+
+```{r load packages, message=FALSE, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(sandwich)
+library(lmtest)
+library(fec16)
+library(scales) 
+library(compare)
+library(dplyr)
+library(gvlma)
+library(caret)
+library(e1071)
+library(car)
+library(ggpubr)
+library(cowplot)
+library(gridExtra)
+
+theme_set(theme_minimal())
+knitr::opts_chunk$set(dpi = 300)
+```
+
+```{r load data, include=FALSE}
+candidates    <- fec16::candidates
+results_house <- fec16::results_house
+campaigns     <- fec16::campaigns
+```
+
+
+\newpage
+
+
+
+## 1. What does the distribution of votes and of spending look like? 
+
+1. (3 points) In separate histograms, show both the distribution of votes (measured in \
+`results_house$general_percent` for now) and spending (measured in `ttl_disb`).  Use a log transform if appropriate for each visualization.  How would you describe what you see in these two plots?
+
+
+```{r include=FALSE}
+write.csv(candidates, "c.csv")
+write.csv(results_house, "r.csv")
+write.csv(campaigns, "ca.csv")
+
+summary(candidates)
+summary(results_house)
+summary(campaigns)
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+p1<-ggplot(results_house, aes(x= general_votes)) +
+ geom_histogram(aes(y=..density..), colour="black", fill="white")+
+ geom_density(alpha=.2, fill="#FF6666")
+ 
+p2<-ggplot(campaigns, aes(x= ttl_disb)) +
+ geom_histogram(aes(y=..density..), colour="black", fill="white")+
+ geom_density(alpha=.2, fill="#FF6666")
+
+p3<-ggplot(results_house,aes(x= general_votes)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 10^x), trans = scales::log_trans())+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(general_votes)")
+
+p4<-ggplot(campaigns, aes(x= ttl_disb)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 10^x), trans = scales::log_trans())+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(ttl_disb)")
+
+
+ggarrange(p1, p2, p3, p4, labels = c("A", "B", "C", "D"), ncol = 2, nrow = 2)
+
+```
+
+
+
+\newpage
+
+## 2. Exploring the relationship between spending and votes. 
+
+2. (3 points) Create a new dataframe by joining `results_house` and `campaigns` using the `inner_join` function from `dplyr`. (We use the format `package::function` -- so `dplyr::inner_join`.) 
+
+
+```{r}
+ 
+d1 <- dplyr::inner_join(results_house, campaigns, by = NULL)
+d1[d1 == -Inf] <- 0
+nrow(d1)
+summary(d1)
+#write.csv(d1, "d1.csv")
+
+```
+
+
+
+\newpage
+
+
+3. (3 points) Produce a scatter plot of `general_votes` on the y-axis and `ttl_disb` on the x-axis. What do you observe about the shape of the joint distribution? 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+p5 <- ggplot(d1, aes(y=general_votes, x=ttl_disb)) +
+  geom_point(size=2, shape=23)+
+  geom_smooth(method=lm)
+
+p6 <- ggplot(d1, aes(x=log(ttl_disb), y=log(general_votes))) +
+  geom_point(size=2, shape=23)+
+  geom_smooth(method=lm)
+
+ggarrange(p5, p6, labels = c("A", "B"), ncol = 2, nrow = 2)
+
+```
+
+\newpage
+
+
+4. (3 points) Create a new variable to indicate whether each individual is a "Democrat", "Republican" or "Other Party". 
+  - Here's an example of how you might use `mutate` and `case_when` together to create a variable. 
+
+```
+starwars %>%
+  select(name:mass, gender, species) %>%
+  mutate(
+  type = case_when(
+    height > 200 | mass > 200 ~ "large",
+    species == "Droid"        ~ "robot",
+    TRUE                      ~ "other"
+    )
+  )
+```
+
+Once you've produced the new variable, plot your scatter plot again, but this time adding an argument into the `aes()` function that colors the points by party membership.  What do you observe about the distribution of all three variables?
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+d2<-d1 %>%
+  dplyr::select(party, general_votes, ttl_disb, state) %>%
+  na.omit() %>%
+    mutate(
+    can_party = case_when(
+      party=="REP" ~ "REP",
+      party=="DEM" ~ "DEM",
+      TRUE ~ "Other"
+    )
+  )
+
+d2<-d2 %>% dplyr::select(can_party, general_votes, ttl_disb, state)
+ 
+```
+
+
+ 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+p0 <- ggplot(d2, aes(y = general_votes, x=ttl_disb, color=can_party)) +
+  geom_smooth(method=lm)+
+  geom_point(size=2, shape=23)
+
+
+p1<-ggplot(d2, aes(x=general_votes, y=ttl_disb, color=can_party)) + 
+  geom_point() + 
+  scale_color_manual(values = c("red", "blue", "green")) + 
+  theme(legend.position=c(0,1), legend.justification=c(0,1))
+
+
+p2<-ggplot(d2, aes(x=general_votes, fill=can_party)) + 
+  geom_density(alpha=.5) + 
+  scale_fill_manual(values =  c("red", "blue", "green")) + 
+  theme(legend.position = "none")
+
+
+# Marginal density plot of y (right panel)
+p3<-ggplot(d2, aes(x=ttl_disb, fill=can_party)) + 
+  geom_density(alpha=.5) + 
+  scale_fill_manual(values =  c("red", "blue", "green")) + 
+  theme(legend.position = "none")
+
+p4<-ggplot(d2, aes(x=can_party, fill=can_party)) + 
+  geom_density(alpha=.5) + 
+  scale_fill_manual(values =  c("red", "blue", "green")) + 
+  theme(legend.position = "none")
+
+
+ggarrange(p1, p2, p3, p4, labels = c("A", "B", "C", "D"), ncol = 2, nrow =2)
+
+```
+
+
+
+\newpage
+
+# Produce a Descriptive Model 
+
+5. (5 Points) Given your observations, produce a linear model that you think does a good job at describing the relationship between candidate spending and votes they receive. You should decide what transformation to apply to spending (if any), what transformation to apply to votes (if any) and also how to include the party affiliation.
+
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+d5<-d2 %>%
+  dplyr::select(can_party, general_votes, ttl_disb, state) %>%
+  na.omit() %>%
+    mutate(
+    can_party = case_when(
+      can_party=="REP" ~ 0,
+      can_party=="DEM" ~ 1,
+      TRUE ~ 2
+    )
+  )
+
+d2<-d5 %>% dplyr::select(can_party, general_votes, ttl_disb, state)
+
+
+sdat <- lm(general_votes ~  ttl_disb + can_party + state, data = d2 )
+bptest(sdat)
+
+#ncvTest(fit)
+
+attach(d2)
+
+c1 <- lm(general_votes ~  ttl_disb + can_party)
+summary(c1)
+e <- resid(c1)
+c2 <- lm(e^2 ~ ttl_disb + can_party + I(ttl_disb^2) + I(can_party^2) + I(ttl_disb*can_party))
+(R2 <- summary(c2)$r.sq)
+(n <- nrow(c2$model))
+(m <- ncol(c2$model))
+(W <- n*R2)
+(P <- 1 - pchisq(W, m - 1))
+
+c3 <- lm(general_votes ~  ttl_disb + can_party, weights = 1/abs(e))
+
+summary(c3)
+
+```
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+d2[d2 == -Inf] <- 0
+
+sdat <- d2[, c("general_votes", "ttl_disb")]
+
+imp <- preProcess(sdat, method = c("knnImpute"), k = 5)
+sdat <- predict(imp, sdat)
+transformed <- spatialSign(sdat)
+transformed <- as.data.frame(transformed)
+par(mfrow = c(1, 2), oma = c(2, 2, 2, 2))
+plot(general_votes ~ ttl_disb, data = sdat, col = "blue", main = "Before")
+plot(general_votes ~ ttl_disb, data = transformed, col = "blue", main = "After")
+
+d2$novotes<-transformed$"general_votes"
+d2$nodisb<-transformed$"ttl_disb"
+
+summary(d2)
+
+#d2<-transformed
+
+```
+
+ 
+
+ 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+write.csv(d2, "d2.csv")
+#summary(d2)
+ # set the 'method' option
+trans <- preProcess(d2, method = c("center", "scale"))
+# use predict() function to get the final result
+d3 <- predict(trans, d2)
+
+d2$csvotes = d3$general_votes
+d2$csdisb = d3$ttl_disb
+
+write.csv(d2, "d2.csv")
+summary(d2)
+write.csv(d3, "d3.csv")
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#summary(d3)
+write.csv(d3, "d3.csv")
+#d2$disb <- log(d$tdisb)
+#d2$votes <- log(d2$tvotes)
+
+
+d2$logdisb <- log(d2$ttl_disb)
+d2$logvotes <- log(d2$general_votes)
+d2$logparty <- log(d2$can_party)
+d2 <- na.omit(d2) 
+d2[d2 == -Inf] <- 0
+
+#only original R2 = 0.5116
+#fit0 <- lm(d2$general_votes ~ d2$ttl_disb + d2$state + d2$can_party)
+fit0 <- lm(d2$general_votes ~ d2$ttl_disb  + d2$can_party)
+summary(fit0)
+
+#only no outlier data R2 = 0.4055
+#fit1 <- lm(d2$novotes ~ d2$nodisb + d2$state + d2$can_party)
+fit1 <- lm(d2$novotes ~ d2$nodisb  + d2$can_party)
+summary(fit1)
+
+#only original, log(spending) data R2 = 0.5534
+#fit2 <- lm(d2$logvotes ~ d2$logdisb + d2$state + d2$can_party)
+fit2 <- lm(d2$logvotes ~ d2$logdisb  + d2$logparty)
+summary(fit2)
+
+#only original, log(spending) data R2 = 0.6041
+#fit3 <- lm(d2$general_votes ~ d2$logdisb + d2$state + d2$can_party)
+fit3 <- lm(d2$general_votes ~ d2$logdisb + d2$can_party)
+summary(fit3)
+
+
+```
+
+
+
+
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#Y = d2$general_votes
+library(MASS)
+
+b <- boxcox(logvotes ~ logdisb + logparty, data = d2)
+#b
+lambda <- b$x
+lik <-b$y
+bc<-cbind(lambda, lik) 
+bc[order(~lik),]
+
+lambda<- 2.4
+d2$lamvotes <- (d2$logvotes^lambda-1)/lambda
+
+m1<-lm(lamvotes ~ logdisb + logparty, data = d2)  
+summary(m1)
+
+
+```
+
+
+
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#m1<-lm(lamvotes ~ logdisb + can_party, data = d2)  
+summary(m1)
+ 
+#bptest(sdat)
+
+#ncvTest(fit)
+
+attach(d2)
+
+c1 <- lm(lamvotes ~  logdisb + logparty)
+summary(c1)
+e <- resid(c1)
+c2 <- lm(e^2 ~ logdisb + logparty + I(logdisb^2) + I(logparty^2) + I(logdisb*logparty))
+(R2 <- summary(c2)$r.sq)
+(n <- nrow(c2$model))
+(m <- ncol(c2$model))
+(W <- n*R2)
+(P <- 1 - pchisq(W, m - 1))
+
+c3 <- lm(lamvotes ~  logdisb + logparty, weights = 1/abs(e))
+
+summary(c3)
+
+```
+
+
+
+
+\newpage
+
+
+
+
+
+6. (3 points) Interpret the model coefficients you estimate.
+
+- Tasks to keep in mind as you're writing about your model: 
+    - At the time that you're writing and interpreting your regression coefficients you'll be *deep* in the analysis. Nobody will know more about the data than you do, at that point. *So, although it will feel tedious, be descriptive and thorough in describing your observations.* 
+    - It can be hard to strike the balance between: on the one hand,  writing enough of the technical underpinnings to know that your model meets the assumptions that it must; and, on the other hand, writing little enough about the model assumptions that the implications of the model can still be clear. We're starting this practice now, so that by the end of Lab 2 you will have had several chances to strike this balance.
+    
+    
+```{r}
+
+ 
+
+  
+
+
+```
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

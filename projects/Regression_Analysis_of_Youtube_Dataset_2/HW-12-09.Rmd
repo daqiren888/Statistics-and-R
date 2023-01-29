@@ -1,0 +1,589 @@
+---
+title: "HW week 12"
+author: "w203 teaching team"
+subtitle: 'w203: Statistics for Data Science'
+
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+```{r setup, include=FALSE}
+
+library(tidyverse) 
+library(magrittr)
+library(knitr)
+library(patchwork)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(nortest)
+library(splitstackshape)
+library(haven)
+library(nhstplot)
+library(gplots)
+library(kableExtra)
+library(readxl)
+library(lmtest)
+library(stargazer)
+library(readxl)
+library(sandwich) 
+library(mvoutlier)
+library(car)
+library(fec16)
+library(scales) 
+library(compare)
+library(gvlma)
+library(caret)
+library(e1071)
+library(cowplot)
+library(gridExtra)
+library(broom)
+theme_set(theme_classic())
+
+#library(outliners)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## More regression analysis of YouTube dataset
+
+You want to explain how much the quality of a video affects the number of views it receives on social media.  **This is a causal question.**
+
+You will use a dataset created by Cheng, Dale and Liu at Simon Fraser University.  It includes observations about 9618 videos shared on YouTube.  Please see [this link](http://netsg.cs.sfu.ca/youtubedata/) for details about how the data was collected.
+
+You will use the following variables:
+
+- views: the number of views by YouTube users.
+
+- rate: the average rating given by users.
+
+- length: the duration of the video in seconds.
+
+
+
+a. Perform a brief exploratory data analysis on the data to discover patterns, outliers, or wrong data entries and summarize your findings.
+
+
+### ANSWER: 
+
+
+I firstly imported data from the csv file.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+df<-read.csv('videos.csv')
+nrow(df)
+write.csv(df,'c.csv')
+
+
+
+df <- subset(df, select = c('rate', 'views', 'length'))  
+df <- na.omit(df)
+nrow(df)
+
+summary(df)
+
+write.csv(df,'v.csv')
+
+```
+
+```{r}
+
+fit <- lm(df$views ~ df$rate + df$length)
+par(mfrow=c(2,2))
+plot (fit)
+summary(fit)
+
+```
+
+
+
+```{r}
+ 
+car::outlierTest(fit)
+ 
+```
+
+```{r}
+
+
+p00<-ggplot(df, aes(x= views)) +
+ geom_histogram(aes(y=..density..), colour="black", fill="white")+
+ geom_density(alpha=.1, fill="#FF6666")
+ 
+p11<-ggplot(df, aes(x= rate)) +
+ geom_histogram(aes(y=..density..), colour="black", fill="white")+
+ geom_density(alpha=.1, fill="#FF6666")
+
+p22<-ggplot(df, aes(x= length)) +
+ geom_histogram(aes(y=..density..), colour="black", fill="white")+
+ geom_density(alpha=.1, fill="#FF6666")
+
+ggarrange(p00, p11, p22, labels = c("views", "rate", "length" ), ncol = 2, nrow =2)
+
+
+p0<-ggplot(df, aes(x= views)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 2^x), trans = scales::log_trans(base=exp(2)+1))+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(views)")
+
+
+p1<-ggplot(df, aes(x= rate)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log2", function(x) 2^x), trans = scales::log_trans(base=exp(2)+1))+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(rate)")
+
+
+p2<-ggplot(df, aes(x= length)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 2^x), trans = scales::log_trans(base=exp(2)+1))+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(length)")
+
+#ggarrange(p1, p2, p0, labels = c("G", "H", "I" ), ncol = 2, nrow =2)
+ 
+
+```
+ 
+```{r}
+
+df$lviews = log2(abs(df$views))^(1/4)
+p0<-ggplot(df, aes(x=views)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 2^x), trans = scales::log_trans(base=exp(2)+1))+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(views)")
+
+df$lrate = log2(abs(df$rate)+1)^3
+p1<-ggplot(df, aes(x= lrate)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 10^x))+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(rate)")
+
+df$llength = log10(df$length)^3
+p2<-ggplot(df, aes(x= llength)) +
+  geom_density() +
+  scale_x_continuous(breaks = trans_breaks("log", function(x) 10^x))+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666")+
+  labs(x = "log(length)")
+
+
+
+ggarrange(p1, p2, p0, labels = c("G", "H", "I" ), ncol = 2, nrow =2)
+```
+
+
+
+b. Based on your EDA, select an appropriate variable transformation (if any) to apply to each of your three variables.  You will fit a model of the type,
+$$ f(\text{views}) = \beta_0 + \beta_1 g(\text{rate})  + \beta_3 h(\text{length})$$ 
+Where $f:\mathbb{R}\to\mathbb{R}$, $g:\mathbb{R}\to\mathbb{R}$, $h:\mathbb{R}\to\mathbb{R}$ are sensible transformations.
+
+
+### ANSWER
+
+In many data analysis, variables will have a skewed distribution over their range. In the last section we saw one way of defining skew using quartiles and median. Variables with skewed distributions can be hard to incorporate into some modeling procedures, especially in the presence of other variables that are not skewed. In this case, applying a transformation to reduce skew will improve performance of models.
+
+Also, skewed data may arise when measuring multiplicative processes. This is very common in physical or biochemical processes. In this case, interpretation of data may be more intiuitive after a transformation.
+
+We have seen an example of skewed data previously when we looked at departure delays in our flights dataset.
+
+In many cases a logarithmic transform is an appropriate transformation to reduce data skew:
+
+If values are all positive: apply log2 transform
+If some values are negative, two options
+Started Log: shift all values so they are positive, apply log2
+Signed Log: sign(x)×log2(abs(x)+1)
+Here is a signed log transformation of departure delay data:
+transformed_flights <- flights %>%
+mutate(transformed_dep_delay = sign(dep_delay) * log2(abs(dep_delay) + 1))
+
+transformed_flights %>%
+  ggplot(aes(x=transformed_dep_delay)) +
+    geom_histogram(binwidth=1)
+
+Warning: Removed 8255 rows containing non-finite values
+(stat_bin).
+
+
+A U-Shaped distribution is a bimodal distribution with frequencies that steadily fall and then steadily rise. However, a U-shaped distribution can't be turned into a bell curve by a meaningful transformation, even if it is perfectly symmetric
+
+
+
+
+```{r}
+
+f1 <- lm(df$views ~ df$rate + df$length)
+
+nrow(df)
+
+df3 <- df %>%
+  mutate(tviews = log2(abs(views) + 1)^(1/4))
+  
+df3 %>%
+  ggplot(aes(x=tviews)) +
+    geom_histogram(binwidth=0.1)
+
+df3 <- df3 %>%
+  mutate(trate = log2(abs(rate) + 1 ))
+
+df3 %>%
+  ggplot(aes(x=trate)) +
+    geom_histogram(binwidth=0.1)
+
+df3 <- df3 %>%
+  mutate(tlength = log2(abs(length) + 1))
+   
+df3 %>%
+  ggplot(aes(x=tlength)) +
+    geom_histogram(binwidth=0.1)
+
+nrow(df3)
+
+df3 <- df3[is.finite(rowSums(df3)),]
+df3 <- na.omit(df3)
+#row_sub = apply(df3, 1, function(row) all(row !=0 ))
+#df3 <- df3[row_sub,]
+nrow(df3)
+
+write.csv(df3,'w.csv')
+
+f5 <- lm(df3$views ~ df3$lrate + df3$llength )
+
+
+par(mfrow=c(2,2))
+plot (f5)
+
+summary(f5)
+
+```
+
+
+\newpage
+
+c. Using diagnostic plots, background knowledge, and statistical tests, assess all five assumptions of the CLM. When an assumption is violated, state what response you will take.  As part of this process, you should decide what tranformation (if any) to apply to each variable.
+
+ 
+
+```{r}
+
+coeftest(f1,vcov=vcovHC(f1))
+
+#4 Zero Conditional Mean/Linear conditional mean
+#x11()
+par(mfrow=c(2,2))
+plot(f1, which =1)
+plot(df$views,f1$residuals)
+plot(df$rate,f1$residuals)
+plot(df$length,f1$residuals)
+
+```
+
+
+```{r}
+
+
+# Variance Inflation Factor 
+# colinearity
+
+vif(f1)
+vif(f1) > 4
+
+
+```
+
+```{r}
+
+#5 Homoskedasticity
+#x11()
+plot(f1, which = 3)
+
+```
+ 
+
+```{r}
+ 
+
+#6 Normality of Errors
+#x11()
+plot(f1, which = 2)
+
+# Look at the histogram of residuals
+#x11()
+hist(f1$residuals, breaks = 20, main = "Residuals from Linear Model Predicting MPG")
+
+# Estimating and testing significance of coeficients
+# With robust standard errors
+coeftest(f1, vcov = vcovHC)
+
+# Wt summary
+summary(f1)
+
+df3<-df[,c("views","rate","length")]
+
+pairs(df3)
+cor(df3)
+
+```
+
+
+
+```{r}
+ 
+
+# Leverage (Actual Influence)
+# Cooks distance
+#x11()
+plot(f1, which=5)
+```
+
+
+
+
+```{r}
+
+# Log transform mpg
+m2 <- lm(log(df$views)~df$rate + df$length, data=df) 
+#x11()
+coeftest(m2,vcovHC)
+
+plot(m2, which=1)
+```
+
+
+
+
+
+```{r}
+
+
+
+# Log transform Q-Q Plot
+#x11()
+plot(m2, which=2)
+
+# Log transform heteroskedasticity
+#x11()
+plot(m2, which=3)
+
+# Log transformed Leverage (Actual Influence)
+# Cooks distance
+#x11()
+plot(m2, which=5)
+
+
+# Comparing two models
+paste('Level-level Model Adjusted R Squared: ', summary(m2)$adj.r.squared)
+paste('Log-level Model Adjusted R Squared: ', summary(m2)$adj.r.squared)
+
+# format regression comparison
+(se.fit = sqrt(diag(vcovHC(fit))))
+(se.m2 = sqrt(diag(vcovHC(m2))))
+
+# We pass the standard errors into stargazer through 
+# the se argument.
+stargazer(f1, m2, type = "text", omit.stat = "f",
+          se = list(se.fit, se.m2),
+          star.cutoffs = c(0.05, 0.01, 0.001))
+
+
+
+
+```
+
+
+
+
+c. Using diagnostic plots, background knowledge, and statistical tests, assess all five assumptions of the CLM. When an assumption is violated, state what response you will take.  As part of this process, you should decide what tranformation (if any) to apply to each variable.
+
+
+Regression assumptions
+
+Linear regression makes several assumptions about the data, such as :
+
+- Linearity of the data. The relationship between the predictor (x) and the outcome (y) is assumed to be linear.
+- Normality of residuals. The residual errors are assumed to be normally distributed.
+- Homogeneity of residuals variance. The residuals are assumed to have a constant variance (homoscedasticity)
+- Independence of residuals error terms.
+
+You should check whether or not these assumptions hold true. Potential problems include:
+
+- Non-linearity of the outcome - predictor relationships
+- Heteroscedasticity: Non-constant variance of error terms.
+- Presence of influential values in the data that can be:
+- Outliers: extreme values in the outcome (y) variable
+- High-leverage points: extreme values in the predictors (x) variable
+
+All these assumptions and potential problems can be checked by producing some diagnostic plots visualizing the residual errors.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r echo=FALSE}
+
+f3 <- lm(df$views ~ df$rate + df$length)
+summary(f3)
+
+par(mfrow = c(2, 2))
+plot(f3)
+
+
+```
+
+
+
+```{r}
+
+library(ggfortify)
+autoplot(f3)
+
+model.diag.metrics <- augment(f3)
+head(model.diag.metrics)
+
+model.diag.metrics <- model.diag.metrics %>%
+  mutate(index = 1:nrow(model.diag.metrics)) %>%
+  select(index, everything(), -.fitted, -.sigma)
+# Inspect the data
+head(model.diag.metrics, 4)
+
+
+```
+
+
+The diagnostic plots show residuals in four different ways:
+
+(1) Residuals vs Fitted. Used to check the linear relationship assumptions. A horizontal line, without distinct patterns is an indication for a linear relationship, what is good.
+
+Ideally, the residual plot will show no fitted pattern. That is, the red line should be approximately horizontal at zero. The presence of a pattern may indicate a problem with some aspect of the linear model.
+
+
+
+(2) Normal Q-Q. Used to examine whether the residuals are normally distributed. It’s good if residuals points follow the straight dashed line.
+
+The QQ plot of residuals can be used to visually check the normality assumption. The normal probability plot of residuals should approximately follow a straight line. In our example, all the points fall approximately along this reference line, so we can assume normality.
+
+(3) Scale-Location (or Spread-Location). Used to check the homogeneity of variance of the residuals (homoscedasticity). Horizontal line with equally spread points is a good indication of homoscedasticity. This is not the case in our example, where we have a heteroscedasticity problem.
+
+Residuals vs Leverage. Used to identify influential cases, that is extreme values that might influence the regression results when included or excluded from the analysis. This plot will be described further in the next sections.
+
+(4) The four plots show the top 3 most extreme data points labeled with with the row numbers of the data in the data set. They might be potentially problematic. You might want to take a close look at them individually to check if there is anything special for the subject or if it could be simply data entry errors. We’ll discuss about this in the following sections.
+
+Outliers and high levarage points
+
+Outliers:
+
+An outlier is a point that has an extreme outcome variable value. The presence of outliers may affect the interpretation of the model, because it increases the RSE.
+
+Outliers can be identified by examining the standardized residual (or studentized residual), which is the residual divided by its estimated standard error. Standardized residuals can be interpreted as the number of standard errors away from the regression line.
+
+Observations whose standardized residuals are greater than 3 in absolute value are possible outliers (James et al. 2014).
+
+High leverage points:
+
+A data point has high leverage, if it has extreme predictor x values. This can be detected by examining the leverage statistic or the hat-value. A value of this statistic above 2(p + 1)/n indicates an observation with high leverage (P. Bruce and Bruce 2017); where, p is the number of predictors and n is the number of observations.
+
+Outliers and high leverage points can be identified by inspecting the Residuals vs Leverage plot:
+
+
+
+```{r}
+# Cook's distance
+plot(f3, 4)
+# Residuals vs Leverage
+plot(f3, 5)
+
+plot(f3, 4, id.n = 5)
+
+
+model.diag.metrics %>%
+  top_n(3, wt = .cooksd)
+
+
+```
+
+Influential values
+
+An influential value is a value, which inclusion or exclusion can alter the results of the regression analysis. Such a value is associated with a large residual.
+
+Not all outliers (or extreme data points) are influential in linear regression analysis.
+
+Statisticians have developed a metric called Cook’s distance to determine the influence of a value. This metric defines influence as a combination of leverage and residual size.
+
+A rule of thumb is that an observation has high influence if Cook’s distance exceeds 4/(n - p - 1)(P. Bruce and Bruce 2017), where n is the number of observations and p the number of predictor variables.
+
+The Residuals vs Leverage plot can help us to find influential observations if any. On this plot, outlying values are generally located at the upper right corner or at the lower right corner. Those spots are the places where data points can be influential against a regression line.
+
+The following plots illustrate the Cook’s distance and the leverage of our model:
+
+
+
+
+```{r}
+df2 <- data.frame(
+  x = c(df$views, 500, 600),
+  y = c(df$rate, 80, 100)
+)
+model2 <- lm(y ~ x, df2)
+
+# Cook's distance
+plot(model2, 4)
+# Residuals vs Leverage
+plot(model2, 5)
+
+
+
+
+
+```
+
+
+On the Residuals vs Leverage plot, look for a data point outside of a dashed line, Cook’s distance. When the points are outside of the Cook’s distance, this means that they have high Cook’s distance scores. In this case, the values are influential to the regression results. The regression results will be altered if we exclude those cases.
+
+In the above example 2, two data points are far beyond the Cook’s distance lines. The other residuals appear clustered on the left. The plot identified the influential observation as #201 and #202. If you exclude these points from the analysis, the slope coefficient changes from 0.06 to 0.04 and R2 from 0.5 to 0.6. Pretty big impact!
+
+
+Discussion
+
+This chapter describes linear regression assumptions and shows how to diagnostic potential problems in the model.
+
+The diagnostic is essentially performed by visualizing the residuals. Having patterns in residuals is not a stop signal. Your current regression model might not be the best way to understand your data.
+
+Potential problems might be:
+
+A non-linear relationships between the outcome and the predictor variables. When facing to this problem, one solution is to include a quadratic term, such as polynomial terms or log transformation. See Chapter @ref(polynomial-and-spline-regression).
+
+Existence of important variables that you left out from your model. Other variables you didn’t include (e.g., age or gender) may play an important role in your model and data. See Chapter @ref(confounding-variables).
+
+Presence of outliers. If you believe that an outlier has occurred due to an error in data collection and entry, then one solution is to simply remove the concerned observation.
+
+
+
+
+
+
